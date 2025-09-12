@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<AnchorPane prefHeight="520.0" prefWidth="720.0" xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.example.app.controllers.RegisterController">
+
+    <children>
+        <!-- ส่วนหัว -->
+        <Label layoutX="253.0" layoutY="14.0" style="-fx-font-size: 18; -fx-font-weight: bold;" text="ลงทะเบียนผู้ใช้บริการ" />
+
+        <!-- ฟอร์มหลัก ใช้ GridPane เพื่อจัดระเบียบ -->
+        <GridPane hgap="12" layoutX="20" layoutY="60" vgap="12">
+            <columnConstraints>
+                <ColumnConstraints halignment="RIGHT" minWidth="140" />
+                <ColumnConstraints hgrow="ALWAYS" minWidth="300" />
+            </columnConstraints>
+            <rowConstraints>
+                <RowConstraints minHeight="32" />
+                <RowConstraints minHeight="32" />
+                <RowConstraints minHeight="32" />
+                <RowConstraints minHeight="32" />
+                <RowConstraints minHeight="32" />
+                <RowConstraints minHeight="32" />
+                <RowConstraints minHeight="120" />
+            </rowConstraints>
+
+            <!-- ชื่อลูกค้า -->
+            <Label text="ชื่อลูกค้า:" GridPane.columnIndex="0" GridPane.rowIndex="0" />
+            <TextField fx:id="tfCustomerName" promptText="ระบุชื่อ-นามสกุล" GridPane.columnIndex="1" GridPane.rowIndex="0" />
+
+            <!-- เบอร์โทร -->
+            <Label text="เบอร์โทร:" GridPane.columnIndex="0" GridPane.rowIndex="1" />
+            <TextField fx:id="tfPhone" promptText="เช่น 0812345678" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+
+            <!-- ป้ายทะเบียน -->
+            <Label text="ป้ายทะเบียน:" GridPane.columnIndex="0" GridPane.rowIndex="2" />
+            <TextField fx:id="tfPlate" promptText="เช่น กข 1234" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+
+            <!-- จังหวัดทะเบียน -->
+            <Label text="จังหวัดทะเบียน:" GridPane.columnIndex="0" GridPane.rowIndex="3" />
+            <TextField fx:id="tfProvince" promptText="เช่น กรุงเทพมหานคร" GridPane.columnIndex="1" GridPane.rowIndex="3" />
+
+            <!-- วันที่ลงทะเบียน -->
+            <Label text="วันที่ลงทะเบียน:" GridPane.columnIndex="0" GridPane.rowIndex="4" />
+            <DatePicker fx:id="dpRegisteredDate" GridPane.columnIndex="1" GridPane.rowIndex="4" />
+
+            <!-- สถานะ (ใช้ ComboBox) -->
+            <Label text="สถานะ:" GridPane.columnIndex="0" GridPane.rowIndex="5" />
+            <ComboBox fx:id="cbStatus" promptText="เลือกสถานะ" GridPane.columnIndex="1" GridPane.rowIndex="5" />
+
+            <!-- อาการเสีย -->
+            <Label text="อาการเสีย:" GridPane.columnIndex="0" GridPane.rowIndex="6" GridPane.valignment="TOP" />
+            <TextArea fx:id="taSymptom" prefRowCount="4" promptText="ระบุอาการเสียโดยสังเขป" GridPane.columnIndex="1" GridPane.rowIndex="6" />
+        </GridPane>
+
+        <!-- ปุ่มบันทึก -->
+        <Button fx:id="btnSave" layoutX="273.0" layoutY="466.0" prefHeight="40" prefWidth="174.0" text="บันทึก">
+         <font>
+            <Font name="System Bold" size="19.0" />
+         </font></Button>
+    </children>
+
+    <!-- สไตล์เพิ่มเติม (ถ้ามีไฟล์ styles.css อยู่ข้างๆ FXML นี้) -->
+    <!--
+    <stylesheets>
+        <String fx:value="@styles.css"/>
+    </stylesheets>
+    -->
+</AnchorPane>
