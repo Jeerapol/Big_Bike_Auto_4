@@ -7,45 +7,48 @@ import javafx.scene.control.Alert;
 import javafx.scene.layout.AnchorPane;
 
 import java.io.IOException;
+import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 /**
- * Router สำหรับเปลี่ยนหน้า (View) ภายใน contentRoot ของ Home
- * - ป้องกันโค้ดซ้ำเวลา navigate
- * - มี error handling แสดง Alert เมื่อโหลด FXML ล้มเหลว
+ * Router สำหรับสลับหน้าในพื้นที่ contentRoot ของ Home
+ * - ใช้ชื่อเส้นทาง (route) เข้าใจง่าย เช่น "dashboard", "register"
+ * - map ไปยังไฟล์ FXML ใน resources: /com/example/big_bike_auto/ui/*.fxml
+ * - ป้องกัน error ด้วย try/catch และแสดง Alert ที่อ่านง่าย
  */
 public class Router {
+    private final HomeController home;
+    private final Map<String, String> routes = new HashMap<>();
 
-    private final HomeController homeController;
+    public Router(HomeController home) {
+        this.home = home;
 
-    public Router(HomeController homeController) {
-        this.homeController = homeController;
+        // กำหนด mapping ชื่อ route -> path ของ FXML
+        routes.put("dashboard", "/com/example/big_bike_auto/ui/Dashboard.fxml");
+        routes.put("register",  "/com/example/big_bike_auto/ui/register.fxml");
+        routes.put("repairDetails", "/com/example/big_bike_auto/ui/RepairDetails.fxml");
+        routes.put("inventory", "/com/example/big_bike_auto/ui/inventory.fxml");
+        routes.put("repairList", "/com/example/big_bike_auto/ui/Dashboard.fxml");
     }
 
     /**
-     * เปลี่ยนหน้าโดยการโหลด FXML ตาม key ที่กำหนด
-     * @param viewKey "register", "repairDetails", "inventory", "repairList"
+     * นำทางไปยังหน้าเป้าหมายในพื้นที่ contentRoot
+     * @param route ชื่อหน้า (เช่น "dashboard")
      */
-    public void navigate(String viewKey) {
-        String fxmlPath = switch (viewKey) {
-            case "register" -> "/com/example/app/views/Register.fxml";
-            case "repairDetails" -> "/com/example/app/views/RepairDetails.fxml";
-            case "inventory" -> "/com/example/app/views/Inventory.fxml";
-            case "repairList" -> "/com/example/app/views/RepairList.fxml";
-            default -> null;
-        };
-
+    public void navigate(String route) {
+        String fxmlPath = routes.get(route);
         if (fxmlPath == null) {
-            showError("ไม่รู้จักหน้าที่ต้องการไป: " + viewKey);
+            showError("ไม่พบเส้นทาง: " + route);
             return;
         }
-
         try {
-            var loader = new FXMLLoader(Objects.requireNonNull(App.class.getResource(fxmlPath)));
+            URL url = Objects.requireNonNull(getClass().getResource(fxmlPath), "ไม่พบ resource: " + fxmlPath);
+            FXMLLoader loader = new FXMLLoader(url);
             Node content = loader.load();
 
-            // วาง Node ใหม่ลงใน contentRoot แล้ว "anchor" รอบด้านให้เต็มพื้นที่
-            AnchorPane contentRoot = homeController.getContentRoot();
+            AnchorPane contentRoot = home.getContentRoot();
             contentRoot.getChildren().setAll(content);
             AnchorPane.setTopAnchor(content, 0.0);
             AnchorPane.setRightAnchor(content, 0.0);
@@ -54,7 +57,7 @@ public class Router {
 
         } catch (IOException ex) {
             ex.printStackTrace();
-            showError("โหลดหน้าไม่สำเร็จ: " + fxmlPath + "\n" + ex.getMessage());
+            showError("โหลดหน้าไม่สำเร็จ: " + fxmlPath + "\nสาเหตุ: " + ex.getMessage());
         }
     }
 

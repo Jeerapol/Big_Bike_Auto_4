@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+<?import javafx.scene.layout.Region?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.example.big_bike_auto.controller.RepairDetailsController">
+
+    <top>
+        <VBox spacing="6" BorderPane.alignment="CENTER">
+            <padding>
+                <Insets top="10" right="10" bottom="10" left="10"/>
+            </padding>
+
+            <Label text="รายละเอียดงานซ่อม" style="-fx-font-size: 20; -fx-font-weight: bold;"/>
+
+            <HBox spacing="12">
+                <VBox spacing="6">
+                    <HBox spacing="8">
+                        <Label text="Job ID:"/>
+                        <Label fx:id="lbJobId" style="-fx-font-weight: bold;"/>
+                    </HBox>
+                    <HBox spacing="8">
+                        <Label text="ลูกค้า:"/>
+                        <Label fx:id="lbCustomerName"/>
+                    </HBox>
+                </VBox>
+
+                <VBox spacing="6">
+                    <HBox spacing="8">
+                        <Label text="รุ่นรถ:"/>
+                        <Label fx:id="lbBikeModel"/>
+                    </HBox>
+                    <HBox spacing="8">
+                        <Label text="วันที่รับงาน:"/>
+                        <Label fx:id="lbReceivedDate"/>
+                    </HBox>
+                </VBox>
+
+                <VBox spacing="6">
+                    <HBox spacing="8" alignment="CENTER_LEFT">
+                        <Label text="สถานะ:"/>
+                        <ComboBox fx:id="cbStatus" prefWidth="180"/>
+                    </HBox>
+                </VBox>
+            </HBox>
+
+            <Separator/>
+        </VBox>
+    </top>
+
+    <center>
+        <VBox spacing="10">
+            <padding>
+                <Insets top="10" right="10" bottom="10" left="10"/>
+            </padding>
+
+            <Label text="บันทึกอาการ/งานที่ทำ" style="-fx-font-weight: bold;"/>
+            <TextArea fx:id="taNotes" prefRowCount="4" wrapText="true"/>
+
+            <Label text="อะไหล่/วัสดุที่ใช้" style="-fx-font-weight: bold;"/>
+
+            <TableView fx:id="tvParts" prefHeight="260">
+                <columns>
+                    <TableColumn fx:id="colPartName" text="รายการอะไหล่" prefWidth="220"/>
+                    <TableColumn fx:id="colQty" text="จำนวน" prefWidth="90"/>
+                    <TableColumn fx:id="colUnit" text="หน่วย" prefWidth="100"/>
+                    <TableColumn fx:id="colUnitPrice" text="ราคา/หน่วย" prefWidth="120"/>
+                    <TableColumn fx:id="colTotal" text="ราคารวม" prefWidth="120"/>
+                </columns>
+            </TableView>
+
+            <HBox spacing="8">
+                <TextField fx:id="tfPartName" promptText="ชื่ออะไหล่ เช่น ผ้าเบรกหน้า" prefWidth="240"/>
+                <TextField fx:id="tfQty" promptText="จำนวน" prefWidth="90"/>
+                <TextField fx:id="tfUnit" promptText="หน่วย เช่น ชิ้น, ชุด" prefWidth="120"/>
+                <TextField fx:id="tfUnitPrice" promptText="ราคา/หน่วย" prefWidth="120"/>
+                <Button text="เพิ่มรายการ" onAction="#onAddPart"/>
+                <Button text="ลบรายการที่เลือก" onAction="#onRemoveSelectedPart"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <HBox spacing="6" alignment="CENTER_RIGHT">
+                    <Label text="รวมทั้งหมด:"/>
+                    <Label fx:id="lbGrandTotal" style="-fx-font-weight: bold;"/>
+                </HBox>
+            </HBox>
+        </VBox>
+    </center>
+
+    <bottom>
+        <HBox spacing="10" alignment="CENTER_RIGHT">
+            <padding>
+                <Insets top="10" right="10" bottom="10" left="10"/>
+            </padding>
+            <Button text="บันทึกการอัปเดต" onAction="#onSave" defaultButton="true"/>
+            <Button text="กลับ" onAction="#onBack"/>
+        </HBox>
+    </bottom>
+
+    <padding>
+        <Insets top="10" right="14" bottom="10" left="14"/>
+    </padding>
+</BorderPane>

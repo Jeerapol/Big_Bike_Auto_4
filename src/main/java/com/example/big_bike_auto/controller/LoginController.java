@@ -13,53 +13,74 @@ import javafx.stage.Stage;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.Objects;
 
+/**
+ * LoginController
+ * - รับค่า username/password จากฟอร์ม
+ * - ตรวจสอบแบบง่าย (demo): ช่องว่างห้ามว่าง
+ * - เมื่อล็อกอินสำเร็จ: เปลี่ยนไปหน้าหลัก (Home.fxml) ซึ่งจะเปิด Dashboard ให้อัตโนมัติ
+ *
+ * หมายเหตุ (Production):
+ * - ควรเชื่อมต่อระบบ auth จริง (เช่น database / API) และ hash password
+ * - เพิ่ม rate limiting / lockout ป้องกัน brute-force
+ */
 public class LoginController {
 
     @FXML private TextField txtUsername;
     @FXML private PasswordField txtPassword;
 
-    private static final String HELLO_FXML = "/com/example/big_bike_auto/hello-view.fxml";
-
-
     @FXML
-    public void onLogin(ActionEvent event){
-        String u = txtUsername.getText() == null ? "" : txtUsername.getText().trim();
-        String p = txtPassword.getText() == null ? "" : txtPassword.getText();
+    private void onLogin(ActionEvent event) {
+        String user = txtUsername != null ? txtUsername.getText().trim() : "";
+        String pass = txtPassword != null ? txtPassword.getText().trim() : "";
 
-
-        if (u.isEmpty() || p.isEmpty()) {
-            showAlert(Alert.AlertType.WARNING, "Invalid input", "Please enter username and password.");
+        // Validation ง่าย ๆ: ห้ามว่าง
+        if (user.isEmpty() || pass.isEmpty()) {
+            showAlert(Alert.AlertType.WARNING, "กรอกข้อมูลไม่ครบ", "กรุณากรอก Username และ Password");
             return;
         }
 
-        if (u.equals("admin") && p.equals("1234")) {
+        // TODO: แทนที่ด้วยการตรวจสอบจริง (เช่นเช็คกับฐานข้อมูล)
+        boolean ok = true;
+
+        if (ok) {
+            // ไปหน้า Home (เมนู + content area)
             try {
-                switchToHello(event);
-            } catch (IOException e) {
-                showAlert(Alert.AlertType.ERROR, "Navigation error", "Cannot open hello view: " + e.getMessage());
+                URL url = Objects.requireNonNull(getClass().getResource("/com/example/big_bike_auto/Home.fxml"), "ไม่พบ Home.fxml");
+                Parent root = FXMLLoader.load(url);
+
+                Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
+                stage.setTitle("Big Bike Auto");
+                stage.setScene(new Scene(root));
+                stage.centerOnScreen();
+                stage.show();
+                // หมายเหตุ: HomeController.initialize() จะเรียก router.navigate("dashboard") ให้เอง
+            } catch (Exception e) {
+                e.printStackTrace();
+                showAlert(Alert.AlertType.ERROR, "เปิดหน้าหลักไม่สำเร็จ", e.getMessage());
             }
         } else {
-            showAlert(Alert.AlertType.ERROR, "Access denied", "ชื่อผู้ใช้หรือรหัสไม่ถูกต้อง");
-            if (txtPassword != null) txtPassword.clear(); // ล้างรหัสผ่านเพื่อความปลอดภัย
+            showAlert(Alert.AlertType.ERROR, "เข้าสู่ระบบล้มเหลว", "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
         }
     }
 
-
-    private void switchToHello(ActionEvent event) throws IOException {
-        URL fxml = getClass().getResource(HELLO_FXML);
-        if (fxml == null) {
-            throw new IOException("FXML not found at: " + HELLO_FXML);
+    @FXML
+    private void onRegister(ActionEvent event) throws IOException {
+        // ไปหน้า Register (ถ้าจำเป็น)
+        try {
+            URL url = Objects.requireNonNull(getClass().getResource("/com/example/big_bike_auto/ui/register.fxml"), "ไม่พบ register.fxml");
+            Parent root = FXMLLoader.load(url);
+            Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
+            stage.setTitle("Register");
+            stage.setScene(new Scene(root));
+            stage.centerOnScreen();
+            stage.show();
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new IOException("เกิดข้อผิดพลาดในการโหลดหน้า Register: " + e.getMessage(), e);
         }
-        Parent root = FXMLLoader.load(fxml);
-        Scene scene = new Scene(root, 600, 400);
-
-        // ดึง Stage ปัจจุบันจากปุ่มที่กด
-        Stage stage = (Stage) ((Node) event.getSource()).getScene().getWindow();
-        stage.setScene(scene);
-        stage.centerOnScreen();
     }
-
 
     private void showAlert(Alert.AlertType type, String title, String msg){
         Alert a = new Alert(type);

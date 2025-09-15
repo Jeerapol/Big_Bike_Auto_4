@@ -5,7 +5,7 @@
 
 <!-- หน้า Home: เมนูด้านบน + contentRoot สำหรับใส่หน้าอื่น -->
 <AnchorPane xmlns="http://javafx.com/javafx/21.0.1" xmlns:fx="http://javafx.com/fxml/1"
-            fx:controller="com.example.app.controllers.HomeController">
+            fx:controller="com.example.big_bike_auto.controller.HomeController">
 
     <!-- แถบหัว: สูง 64, ชิดบนและซ้าย/ขวา -->
     <AnchorPane prefHeight="64.0" style="-fx-background-color: #3381F2;"
