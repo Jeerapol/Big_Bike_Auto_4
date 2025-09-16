@@ -22,22 +22,22 @@
         <menus>
             <Menu text="ลงทะเบียน">
                 <items>
-                    <MenuItem fx:id="menuRegister" text="เปิดหน้าลงทะเบียน"/>
+                    <MenuItem fx:id="menuRegister" text="เปิดหน้าลงทะเบียน" onAction="#goRegister"/>
                 </items>
             </Menu>
             <Menu text="รายละเอียดงานซ่อม">
                 <items>
-                    <MenuItem fx:id="menuRepairDetails" text="เปิดหน้ารายละเอียดงานซ่อม"/>
+                    <MenuItem fx:id="menuRepairDetails" text="เปิดหน้ารายละเอียดงานซ่อม" onAction="#goRepairDetails"/>
                 </items>
             </Menu>
             <Menu text="สินค้าคงคลัง">
                 <items>
-                    <MenuItem fx:id="menuInventory" text="เปิดหน้าสินค้าคงคลัง"/>
+                    <MenuItem fx:id="menuInventory" text="เปิดหน้าสินค้าคงคลัง" onAction="#goInventory"/>
                 </items>
             </Menu>
             <Menu text="รายการซ่อม">
                 <items>
-                    <MenuItem fx:id="menuRepairList" text="เปิดหน้ารายการซ่อม"/>
+                    <MenuItem fx:id="menuRepairList" text="เปิดหน้ารายการซ่อม" onAction="#goRepairList"/>
                 </items>
             </Menu>
         </menus>

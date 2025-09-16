@@ -6,6 +6,12 @@
 <?import javafx.scene.text.*?>
 <?import javafx.scene.layout.Region?>
 
+<!--
+  หน้า "รายละเอียดงานซ่อม" สำหรับช่าง
+  - แสดงข้อมูลหัวงาน + สถานะ
+  - บันทึกอาการ/งานที่ทำ
+  - จัดการรายการอะไหล่ (เพิ่ม/ลบ) พร้อมคำนวณราคารวม
+-->
 <BorderPane xmlns="http://javafx.com/javafx/21"
             xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="com.example.big_bike_auto.controller.RepairDetailsController">

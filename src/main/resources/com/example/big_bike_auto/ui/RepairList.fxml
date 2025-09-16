@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.example.big_bike_auto.controller.RepairListController">
+    <top>
+        <HBox spacing="10" BorderPane.alignment="CENTER_LEFT">
+            <children>
+                <Label text="รายการซ่อม" style="-fx-font-size: 18; -fx-font-weight: bold;"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button fx:id="btnRefresh" text="รีเฟรช" onAction="#onRefresh"/>
+            </children>
+            <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+        </HBox>
+    </top>
+
+    <center>
+        <TableView fx:id="tvJobs" prefHeight="480">
+            <columns>
+                <TableColumn fx:id="colId" text="Job ID" prefWidth="250"/>
+                <TableColumn fx:id="colCustomer" text="ลูกค้า" prefWidth="200"/>
+                <TableColumn fx:id="colBike" text="รถ/ทะเบียน" prefWidth="240"/>
+                <TableColumn fx:id="colDate" text="วันที่รับงาน" prefWidth="140"/>
+                <TableColumn fx:id="colStatus" text="สถานะ" prefWidth="200"/>
+            </columns>
+        </TableView>
+    </center>
+
+    <bottom>
+        <HBox spacing="10" alignment="CENTER_RIGHT">
+            <children>
+                <!-- ปุ่มนี้ให้ TECHNICIAN และ ADMIN -->
+                <Button fx:id="btnEditRepair" text="แก้ไขรายการซ่อม" onAction="#onEditRepair"/>
+                <!-- ปุ่มนี้ให้ STAFF และ ADMIN -->
+                <Button fx:id="btnEditRegister" text="แก้ไขข้อมูลลงทะเบียน" onAction="#onEditRegister"/>
+            </children>
+            <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+        </HBox>
+    </bottom>
+</BorderPane>

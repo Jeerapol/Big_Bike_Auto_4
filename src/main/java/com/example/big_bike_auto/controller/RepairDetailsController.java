@@ -1,5 +1,12 @@
 package com.example.big_bike_auto.controller;
 
+/*
+ * Controller สำหรับหน้ารายละเอียดงานซ่อม
+ * - แสดง/แก้ไขสถานะงาน, notes
+ * - จัดการรายการอะไหล่ (เพิ่ม/ลบ) + คำนวณยอดรวม
+ * - บันทึกลง local repository (ไฟล์ .ser) ด้วย Repository Pattern
+ */
+
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
@@ -20,6 +27,7 @@ import java.util.*;
 
 public class RepairDetailsController {
 
+    // ===== UI refs =====
     @FXML private Label lbJobId;
     @FXML private Label lbCustomerName;
     @FXML private Label lbBikeModel;
@@ -41,6 +49,7 @@ public class RepairDetailsController {
 
     @FXML private Label lbGrandTotal;
 
+    // ===== State =====
     private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("th", "TH"));
     private final ObservableList<PartUsage> parts = FXCollections.observableArrayList();
     private UUID currentJobId;
@@ -60,7 +69,7 @@ public class RepairDetailsController {
         lbGrandTotal.setText(currencyFormat.format(0.0));
     }
 
-    /** แก้ path → ไปที่โฟลเดอร์ ui */
+    // ===== Public API (ใช้กับ Router) =====
     public static void openWithJob(UUID jobId) {
         try {
             FXMLLoader loader = new FXMLLoader(
@@ -81,6 +90,34 @@ public class RepairDetailsController {
         }
     }
 
+    /** เปลี่ยนเป็น public เพื่อให้ Router เรียกได้ */
+    public void loadJob(UUID jobId) {
+        try {
+            Optional<RepairJob> opt = repo.findById(jobId);
+            if (opt.isEmpty()) {
+                showAlert(Alert.AlertType.ERROR, "ไม่พบงานซ่อม", "Job ID: " + jobId + " ไม่พบในระบบ");
+                return;
+            }
+
+            RepairJob job = opt.get();
+            currentJobId = job.getJobId();
+
+            lbJobId.setText(job.getJobId().toString());
+            lbCustomerName.setText(nullToDash(job.getCustomerName()));
+            lbBikeModel.setText(nullToDash(job.getBikeModel()));
+            lbReceivedDate.setText(job.getReceivedDate() != null ? job.getReceivedDate().toString() : "-");
+
+            cbStatus.getSelectionModel().select(job.getStatus() != null ? job.getStatus() : RepairStatus.RECEIVED);
+            taNotes.setText(job.getNotes() != null ? job.getNotes() : "");
+
+            parts.setAll(job.getParts() != null ? job.getParts() : Collections.emptyList());
+            recalcGrandTotal();
+        } catch (Exception ex) {
+            showException("โหลดงานซ่อมไม่สำเร็จ", ex);
+        }
+    }
+
+    // ===== Handlers =====
     @FXML
     private void onAddPart(ActionEvent event) {
         try {
@@ -127,7 +164,7 @@ public class RepairDetailsController {
 
             job.setStatus(cbStatus.getValue());
             job.setNotes(safeTrim(taNotes.getText()));
-            job.setParts(new ArrayList<>(parts));
+            job.setParts(new ArrayList<>(parts)); // clone list ป้องกัน side-effect
 
             validateJobBeforeSave(job);
             repo.save(job);
@@ -146,32 +183,7 @@ public class RepairDetailsController {
         stage.close();
     }
 
-    private void loadJob(UUID jobId) {
-        try {
-            Optional<RepairJob> opt = repo.findById(jobId);
-            if (opt.isEmpty()) {
-                showAlert(Alert.AlertType.ERROR, "ไม่พบงานซ่อม", "Job ID: " + jobId + " ไม่พบในระบบ");
-                return;
-            }
-
-            RepairJob job = opt.get();
-            currentJobId = job.getJobId();
-
-            lbJobId.setText(job.getJobId().toString());
-            lbCustomerName.setText(nullToDash(job.getCustomerName()));
-            lbBikeModel.setText(nullToDash(job.getBikeModel()));
-            lbReceivedDate.setText(job.getReceivedDate() != null ? job.getReceivedDate().toString() : "-");
-
-            cbStatus.getSelectionModel().select(job.getStatus() != null ? job.getStatus() : RepairStatus.RECEIVED);
-            taNotes.setText(job.getNotes() != null ? job.getNotes() : "");
-
-            parts.setAll(job.getParts() != null ? job.getParts() : Collections.emptyList());
-            recalcGrandTotal();
-        } catch (Exception ex) {
-            showException("โหลดงานซ่อมไม่สำเร็จ", ex);
-        }
-    }
-
+    // ===== Helpers =====
     private void recalcGrandTotal() {
         double grand = parts.stream().mapToDouble(PartUsage::getTotalPrice).sum();
         lbGrandTotal.setText(currencyFormat.format(grand));
@@ -236,6 +248,7 @@ public class RepairDetailsController {
         showAlert(Alert.AlertType.ERROR, header, ex.getMessage() != null ? ex.getMessage() : ex.toString());
     }
 
+    // ===== Domain =====
     public enum RepairStatus {
         RECEIVED("รับงานแล้ว"),
         DIAGNOSING("กำลังวิเคราะห์อาการ"),
@@ -255,6 +268,7 @@ public class RepairDetailsController {
         private int quantity;
         private String unit;
         private double unitPrice;
+
         public PartUsage() { }
         public PartUsage(String partName, int quantity, String unit, double unitPrice) {
             this.partName = partName; this.quantity = quantity; this.unit = unit; this.unitPrice = unitPrice;
@@ -278,8 +292,10 @@ public class RepairDetailsController {
         private RepairStatus status;
         private String notes;
         private List<PartUsage> parts;
+
         public RepairJob() { }
         public RepairJob(UUID jobId) { this.jobId = jobId; }
+
         public UUID getJobId() { return jobId; }
         public void setJobId(UUID jobId) { this.jobId = jobId; }
         public String getCustomerName() { return customerName; }
@@ -296,6 +312,7 @@ public class RepairDetailsController {
         public void setParts(List<PartUsage> parts) { this.parts = parts; }
     }
 
+    // ===== Repository =====
     public interface RepairJobRepository {
         Optional<RepairJob> findById(UUID jobId) throws IOException, ClassNotFoundException;
         void save(RepairJob job) throws IOException, ClassNotFoundException;

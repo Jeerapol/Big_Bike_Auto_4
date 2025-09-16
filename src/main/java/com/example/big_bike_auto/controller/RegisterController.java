@@ -1,5 +1,6 @@
 package com.example.big_bike_auto.controller;
 
+import com.example.big_bike_auto.RouterHub;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.control.Alert.AlertType;
@@ -8,21 +9,15 @@ import javafx.util.StringConverter;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * Controller สำหรับหน้า "ลงทะเบียนผู้ใช้บริการ"
- * - ทำหน้าที่เชื่อมโยง UI (fx:id) กับ logic
- * - ใส่ validation เบื้องต้น (ฟิลด์บังคับ, เบอร์โทรเป็นตัวเลข)
- * - ตั้งค่าเริ่มต้น (วันที่วันนี้, รายการสถานะ)
- *
- * Junior-friendly notes:
- * - @FXML: บอก JavaFX ให้ฉีด (inject) ตัวแปร/เมธอดนี้จาก FXML
- * - initialize(): จะถูกเรียกอัตโนมัติหลังจากโหลด FXML เสร็จ
+ * Controller: หน้าลงทะเบียน
+ * Flow ที่ต้องการ: กดบันทึกสำเร็จ => แจ้งเตือน => กลับไปหน้า Dashboard (ไม่เปิดหน้า Repair Details ตรงนี้)
  */
 public class RegisterController {
 
-    // === UI refs ===
     @FXML private TextField tfCustomerName;
     @FXML private TextField tfPhone;
     @FXML private TextField tfPlate;
@@ -32,27 +27,17 @@ public class RegisterController {
     @FXML private TextArea taSymptom;
     @FXML private Button btnSave;
 
-    // pattern สำหรับเบอร์โทร (ตัวเลขเท่านั้น 9-10 หลัก)
     private static final Pattern PHONE_PATTERN = Pattern.compile("\\d{9,10}");
 
-    /**
-     * เรียกหลังโหลด FXML เสร็จ: ใส่ค่าเริ่มต้น, ตั้งค่า formatter/validator, hookup events
-     */
     @FXML
     private void initialize() {
-        // 1) ตั้งวันที่เริ่มต้นเป็นวันนี้
+        // ตั้งค่า date picker และตัวกรองเบอร์โทร (ตัวเลขเท่านั้น)
         dpRegisteredDate.setValue(LocalDate.now());
         dpRegisteredDate.setConverter(new StringConverter<>() {
-            // อธิบาย: ให้ DatePicker ใช้ค่า default ของ JavaFX ก็ได้
-            @Override public String toString(LocalDate date) {
-                return date != null ? date.toString() : "";
-            }
-            @Override public LocalDate fromString(String s) {
-                return (s == null || s.isBlank()) ? null : LocalDate.parse(s);
-            }
+            @Override public String toString(LocalDate date) { return date != null ? date.toString() : ""; }
+            @Override public LocalDate fromString(String s) { return (s == null || s.isBlank()) ? null : LocalDate.parse(s); }
         });
 
-        // 2) ใส่รายการสถานะใน ComboBox (แทน MenuButton)
         cbStatus.getItems().setAll(
                 "ลงทะเบียน",
                 "กำลังซ่อม",
@@ -60,27 +45,15 @@ public class RegisterController {
                 "ซ่อมเสร็จสิ้น (ชำระเงินแล้ว)"
         );
 
-        // 3) ให้ tfPhone รับเฉพาะตัวเลข (TextFormatter)
         tfPhone.setTextFormatter(new TextFormatter<>(change -> {
-            if (change.getControlNewText().isEmpty()) {
-                return change; // ว่างได้ระหว่างพิมพ์ (จะตรวจอีกทีตอนกดบันทึก)
-            }
-            // รับเฉพาะตัวเลข
-            if (change.getControlNewText().matches("\\d*")) {
-                return change;
-            }
-            return null; // ปฏิเสธการเปลี่ยนแปลงที่ไม่ใช่ตัวเลข
+            if (change.getControlNewText().isEmpty()) return change;
+            return change.getControlNewText().matches("\\d*") ? change : null;
         }));
 
-        // 4) คลิกบันทึก → validate แล้ว (จำลอง) บันทึก
         btnSave.setOnAction(e -> onSave());
     }
 
-    /**
-     * กดบันทึกข้อมูล:
-     * - ตรวจความครบถ้วนของฟิลด์
-     * - แสดง Alert ถ้าผิดพลาด หรือ สรุปข้อมูลถ้าสำเร็จ
-     */
+    /** เมื่อผู้ใช้กดบันทึก: validate -> สร้าง job -> save -> บันทึก customer -> แจ้งเตือน -> กลับ Dashboard */
     private void onSave() {
         var errors = validateForm();
         if (!errors.isEmpty()) {
@@ -88,73 +61,72 @@ public class RegisterController {
             return;
         }
 
-        // TODO: ในงานจริง: สร้าง DTO แล้วส่งต่อไป Service/Repository หรือเรียก API
-        String summary = """
-                ✅ บันทึกสำเร็จ (ตัวอย่าง)
-                - ชื่อลูกค้า: %s
-                - เบอร์โทร: %s
-                - ป้ายทะเบียน: %s
-                - จังหวัดทะเบียน: %s
-                - วันที่ลงทะเบียน: %s
-                - สถานะ: %s
-                - อาการเสีย: %s
-                """.formatted(
-                safe(tfCustomerName.getText()),
-                safe(tfPhone.getText()),
-                safe(tfPlate.getText()),
-                safe(tfProvince.getText()),
-                dpRegisteredDate.getValue(),
-                cbStatus.getValue(),
-                safe(taSymptom.getText())
-        );
-        showInfo("ผลการบันทึก", summary);
+        try {
+            // 1) สร้างงานซ่อม (job) จากข้อมูลฟอร์ม
+            UUID jobId = UUID.randomUUID();
+            var job = new RepairDetailsController.RepairJob(jobId);
+            job.setCustomerName(safe(tfCustomerName.getText()));
+            job.setBikeModel("%s (%s/%s)".formatted(
+                    safe(tfPlate.getText()),
+                    safe(tfProvince.getText()),
+                    safe(tfPhone.getText())
+            ));
+            job.setReceivedDate(dpRegisteredDate.getValue());
+            job.setStatus(RepairDetailsController.RepairStatus.RECEIVED);
+            job.setNotes(safe(taSymptom.getText()));
+            job.setParts(new java.util.ArrayList<>());
 
-        // ล้างฟอร์มหรือคงไว้ก็ได้ ตาม UX ที่ต้องการ
-        // clearForm();
+            // 2) เซฟลง storage (repo เดิมของคุณ)
+            var repo = new RepairDetailsController.FileRepairJobRepository();
+            repo.save(job);
+
+            // 3) บันทึกลูกค้าเป็น JSON (ไม่ให้ล่มถ้าเขียนไฟล์ไม่ได้)
+            try {
+                com.example.big_bike_auto.customer.CustomerRepository cRepo =
+                        new com.example.big_bike_auto.customer.CustomerRepository();
+                com.example.big_bike_auto.customer.Customer c =
+                        new com.example.big_bike_auto.customer.Customer(
+                                jobId.toString(),                            // ใช้ jobId เป็น id เพื่อโยงไป repair details ได้
+                                safe(tfCustomerName.getText()),
+                                safe(tfPhone.getText()),
+                                null,                                        // ยังไม่มี email ในฟอร์ม
+                                java.time.LocalDateTime.now()
+                        );
+                cRepo.append(c);
+            } catch (Exception cx) {
+                System.err.println("WARN: เขียน customers.json ไม่ได้: " + cx.getMessage());
+            }
+
+            // 4) แจ้งเตือนสำเร็จ + กลับ Dashboard
+            Alert ok = new Alert(AlertType.INFORMATION);
+            ok.setTitle("สำเร็จ");
+            ok.setHeaderText("บันทึกการลงทะเบียนเรียบร้อย");
+            ok.setContentText("กลับไปหน้า Dashboard แล้วเลือกงานเพื่อเปิดรายละเอียดได้");
+            ok.showAndWait();
+
+            // ★ กลับ Dashboard ผ่าน Router ของคุณ
+            RouterHub.openDashboard(); // = RouterHub.getRouter().navigate("dashboard")
+
+        } catch (Exception ex) {
+            showError("บันทึกไม่สำเร็จ", ex.getMessage());
+            ex.printStackTrace();
+        }
     }
 
-    /**
-     * ตรวจข้อมูลฟอร์มแบบง่าย ๆ
-     */
+    /** ตรวจความถูกต้องของฟอร์ม */
     private List<String> validateForm() {
-        new Object(); // no-op เพื่อกัน accidental empty method during refactor
-        var builder = new java.util.ArrayList<String>();
-
-        if (isBlank(tfCustomerName.getText())) {
-            builder.add("กรุณาระบุชื่อลูกค้า");
-        }
-        if (isBlank(tfPhone.getText())) {
-            builder.add("กรุณาระบุเบอร์โทร");
-        } else if (!PHONE_PATTERN.matcher(tfPhone.getText().trim()).matches()) {
-            builder.add("เบอร์โทรต้องเป็นตัวเลข 9-10 หลัก");
-        }
-        if (isBlank(tfPlate.getText())) {
-            builder.add("กรุณาระบุป้ายทะเบียน");
-        }
-        if (isBlank(tfProvince.getText())) {
-            builder.add("กรุณาระบุจังหวัดทะเบียน");
-        }
-        if (dpRegisteredDate.getValue() == null) {
-            builder.add("กรุณาเลือกวันที่ลงทะเบียน");
-        }
-        if (cbStatus.getValue() == null) {
-            builder.add("กรุณาเลือกสถานะ");
-        }
-        // อาการเสีย อนุโลมให้ว่างได้ แต่แนะนำให้กรอก (ถ้าบังคับ ให้ uncomment บรรทัดล่าง)
-        // if (isBlank(taSymptom.getText())) builder.add("กรุณาระบุอาการเสีย");
-
-        return builder;
+        var list = new java.util.ArrayList<String>();
+        if (isBlank(tfCustomerName.getText())) list.add("กรุณากรอกชื่อผู้ใช้บริการ");
+        if (isBlank(tfPhone.getText()) || !PHONE_PATTERN.matcher(tfPhone.getText()).matches()) list.add("กรุณากรอกเบอร์โทร 9-10 หลัก");
+        if (isBlank(tfPlate.getText())) list.add("กรุณากรอกทะเบียนรถ");
+        if (isBlank(tfProvince.getText())) list.add("กรุณากรอกจังหวัด");
+        if (dpRegisteredDate.getValue() == null) list.add("กรุณาเลือกวันที่รับรถ");
+        if (cbStatus.getValue() == null) list.add("กรุณาเลือกสถานะเริ่มต้น");
+        return list;
     }
 
-    // ===== Utils =====
-
-    private static boolean isBlank(String s) {
-        return s == null || s.trim().isEmpty();
-    }
-
-    private static String safe(String s) {
-        return Objects.toString(s, "");
-    }
+    private static boolean isBlank(String s) { return s == null || s.trim().isEmpty(); }
+    private static String safe(String s) { return Objects.toString(s, ""); }
 
     private void showError(String header, String content) {
         Alert alert = new Alert(AlertType.ERROR);
@@ -162,24 +134,5 @@ public class RegisterController {
         alert.setHeaderText(header);
         alert.setContentText(content);
         alert.showAndWait();
-    }
-
-    private void showInfo(String header, String content) {
-        Alert alert = new Alert(AlertType.INFORMATION);
-        alert.setTitle("ข้อมูล");
-        alert.setHeaderText(header);
-        alert.setContentText(content);
-        alert.showAndWait();
-    }
-
-    @SuppressWarnings("unused")
-    private void clearForm() {
-        tfCustomerName.clear();
-        tfPhone.clear();
-        tfPlate.clear();
-        tfProvince.clear();
-        dpRegisteredDate.setValue(LocalDate.now());
-        cbStatus.getSelectionModel().clearSelection();
-        taSymptom.clear();
     }
 }

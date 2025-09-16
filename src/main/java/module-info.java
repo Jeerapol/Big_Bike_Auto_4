@@ -2,20 +2,26 @@ module com.example.big_bike_auto {
     requires javafx.controls;
     requires javafx.fxml;
 
-    // ใช้ไลบรารีเหล่านี้จริงจึง requires
+    // ไลบรารี UI อื่น ๆ
     requires org.controlsfx.controls;
     requires com.dlsc.formsfx;
     requires org.kordamp.bootstrapfx.core;
 
-    // ให้ JavaFX launcher (javafx.graphics) เรียกคลาส Application ในแพ็กเกจ ui ได้
+    // ✅ เพิ่ม Jackson
+    requires com.fasterxml.jackson.core;
+    requires com.fasterxml.jackson.databind;
+    requires com.fasterxml.jackson.annotation;
+    requires com.fasterxml.jackson.datatype.jsr310;
+
+    // Export UI และ root package
     exports com.example.big_bike_auto.ui;
+    exports com.example.big_bike_auto;
 
-    // ถ้าคุณมีคลาส public อื่นใน root package ที่อยากให้ module อื่นเห็น ค่อย exports เพิ่ม
-     exports com.example.big_bike_auto;
-
-    // ให้ FXMLLoader เข้าถึง @FXML ใน controller (reflection)
+    // เปิดให้ FXMLLoader ใช้ reflection
     opens com.example.big_bike_auto.controller to javafx.fxml;
     opens com.example.big_bike_auto to javafx.fxml;
 
-    // ถ้ามี FXML ที่ fx:controller อยู่ในแพ็กเกจอื่นเพิ่มเติม ให้ opens เพิ่มตามนั้น
+    // ✅ เปิดให้ Jackson ใช้ reflection (serialize/deserialize)
+    opens com.example.big_bike_auto.customer to com.fasterxml.jackson.databind;
+    opens com.example.big_bike_auto.common to com.fasterxml.jackson.databind;
 }
