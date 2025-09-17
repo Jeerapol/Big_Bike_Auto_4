@@ -1,5 +1,6 @@
 package com.example.big_bike_auto;
 
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -22,7 +23,8 @@ public final class RouterHub {
     public static Router getRouter() {
         if (ROUTER == null) {
             throw new IllegalStateException(
-                    "Router ยังไม่ได้ตั้งค่า (ต้องเรียก RouterHub.setRouter(...) จาก HomeController/Main ก่อน)");
+                    "Router ยังไม่ได้ตั้งค่า (ต้องเรียก RouterHub.setRouter(...) จาก HomeController/Main ก่อน)"
+            );
         }
         return ROUTER;
     }
@@ -39,8 +41,22 @@ public final class RouterHub {
         getRouter().navigate("register");
     }
 
-    /** เปิดหน้า รายละเอียดงานซ่อม ตาม jobId */
+    /** เปิดหน้า รายละเอียดงานซ่อม ตาม jobId (แบบ UUID) */
     public static void openRepairDetails(UUID jobId) {
         getRouter().toRepairDetails(jobId);
+    }
+
+    /**
+     * Overload สะดวกสำหรับโค้ดที่มี jobId เป็น String
+     * - แปลงเป็น UUID แล้วเรียก openRepairDetails(UUID)
+     * - ถ้า String ไม่ใช่ UUID ที่ถูกต้อง จะโยน IllegalArgumentException พร้อมข้อความอธิบาย
+     */
+    public static void openRepairDetailsByJobId(String jobId) {
+        Objects.requireNonNull(jobId, "jobId ห้ามเป็น null");
+        try {
+            openRepairDetails(UUID.fromString(jobId));
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("รูปแบบ jobId ไม่ใช่ UUID ที่ถูกต้อง: " + jobId, ex);
+        }
     }
 }

@@ -1,1 +1,11 @@
-[]
+[ {
+  "id" : "7a4e4ddb-7cf6-456c-8bee-0754fa00d99f",
+  "name" : "จีรพล เย่า",
+  "phone" : "0159487263",
+  "plate" : "กข 1234",
+  "province" : "กรุงเทพ",
+  "status" : "DIAGNOSING",
+  "symptom" : "ไฟเลี้ยงขวาไม่ติด",
+  "receivedDate" : "2025-09-17",
+  "registeredAt" : "2025-09-17T19:10:17.1486278"
+} ]

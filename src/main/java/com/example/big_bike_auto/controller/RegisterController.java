@@ -1,20 +1,29 @@
 package com.example.big_bike_auto.controller;
 
 import com.example.big_bike_auto.RouterHub;
+import com.example.big_bike_auto.customer.Customer;
+import com.example.big_bike_auto.customer.CustomerRepository;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.control.Alert.AlertType;
 import javafx.util.StringConverter;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * Controller: หน้าลงทะเบียน
- * Flow ที่ต้องการ: กดบันทึกสำเร็จ => แจ้งเตือน => กลับไปหน้า Dashboard (ไม่เปิดหน้า Repair Details ตรงนี้)
+ * RegisterController (customers.json version)
+ * - ตรงกับ FXML เดิม: fx:id = tfCustomerName, tfPhone, tfPlate, tfProvince, dpRegisteredDate, cbStatus, taSymptom, btnSave
+ * - บันทึกลง data/customers.json ผ่าน CustomerRepository (Single Source of Truth ฝั่ง Register)
+ * - แสดงข้อความสถานะเป็นภาษาไทยให้ตรงกับหน้า Repair (UI เท่านั้น)
+ *
+ * หมายเหตุ:
+ * - นี่เป็นการ "แก้เฉพาะ UI/ข้อความ" ให้ตรงกัน ข้อมูลยังเป็นโมเดล Customer เดิม (Customer.RepairStatus)
  */
 public class RegisterController {
 
@@ -31,29 +40,32 @@ public class RegisterController {
 
     @FXML
     private void initialize() {
-        // ตั้งค่า date picker และตัวกรองเบอร์โทร (ตัวเลขเท่านั้น)
+        // วันที่เริ่มต้น = วันนี้
         dpRegisteredDate.setValue(LocalDate.now());
         dpRegisteredDate.setConverter(new StringConverter<>() {
             @Override public String toString(LocalDate date) { return date != null ? date.toString() : ""; }
             @Override public LocalDate fromString(String s) { return (s == null || s.isBlank()) ? null : LocalDate.parse(s); }
         });
 
+        // ✅ ข้อความสถานะให้ตรงกับหน้า Repair (ภาษาไทย)
         cbStatus.getItems().setAll(
-                "ลงทะเบียน",
-                "กำลังซ่อม",
-                "ซ่อมเสร็จสิ้น (รอชำระเงิน)",
-                "ซ่อมเสร็จสิ้น (ชำระเงินแล้ว)"
+                "รับงานแล้ว",          // RECEIVED
+                "กำลังวิเคราะห์อาการ",   // DIAGNOSING
+                "รออะไหล่",             // WAIT_PARTS
+                "กำลังซ่อม",            // REPAIRING
+                "ตรวจสอบคุณภาพ",        // QA
+                "เสร็จสิ้น"             // DONE (ของฝั่ง Customer)
         );
+        cbStatus.getSelectionModel().selectFirst();
 
-        tfPhone.setTextFormatter(new TextFormatter<>(change -> {
-            if (change.getControlNewText().isEmpty()) return change;
-            return change.getControlNewText().matches("\\d*") ? change : null;
-        }));
+        // ให้ช่องเบอร์โทรรับเฉพาะตัวเลขตอนพิมพ์
+        tfPhone.setTextFormatter(new TextFormatter<>(change ->
+                change.getControlNewText().matches("\\d*") ? change : null));
 
         btnSave.setOnAction(e -> onSave());
     }
 
-    /** เมื่อผู้ใช้กดบันทึก: validate -> สร้าง job -> save -> บันทึก customer -> แจ้งเตือน -> กลับ Dashboard */
+    /** กดบันทึก */
     private void onSave() {
         var errors = validateForm();
         if (!errors.isEmpty()) {
@@ -62,65 +74,67 @@ public class RegisterController {
         }
 
         try {
-            // 1) สร้างงานซ่อม (job) จากข้อมูลฟอร์ม
-            UUID jobId = UUID.randomUUID();
-            var job = new RepairDetailsController.RepairJob(jobId);
-            job.setCustomerName(safe(tfCustomerName.getText()));
-            job.setBikeModel("%s (%s/%s)".formatted(
-                    safe(tfPlate.getText()),
-                    safe(tfProvince.getText()),
-                    safe(tfPhone.getText())
-            ));
-            job.setReceivedDate(dpRegisteredDate.getValue());
-            job.setStatus(RepairDetailsController.RepairStatus.RECEIVED);
-            job.setNotes(safe(taSymptom.getText()));
-            job.setParts(new java.util.ArrayList<>());
+            // map ข้อความสถานะ (ไทย) -> Enum ของ Customer
+            Customer.RepairStatus st = mapUiStatusToCustomerEnum(Objects.toString(cbStatus.getValue(), ""));
 
-            // 2) เซฟลง storage (repo เดิมของคุณ)
-            var repo = new RepairDetailsController.FileRepairJobRepository();
-            repo.save(job);
+            // สร้าง Customer และกำหนดฟิลด์
+            Customer c = new Customer();
+            c.setId(UUID.randomUUID().toString());            // ระบุตัวตนด้วย UUID
+            c.setName(safe(tfCustomerName.getText()));
+            c.setPhone(safe(tfPhone.getText()));
+            c.setPlate(safe(tfPlate.getText()));
+            c.setProvince(safe(tfProvince.getText()));
+            c.setBikeModel(null);                              // optional ในโมเดลเดิม
+            c.setStatus(st);
+            c.setSymptom(safe(taSymptom.getText()));
+            c.setReceivedDate(dpRegisteredDate.getValue());    // วันที่รับรถจาก DatePicker
+            c.setRegisteredAt(LocalDateTime.now());            // เวลาบันทึกเข้า system
 
-            // 3) บันทึกลูกค้าเป็น JSON (ไม่ให้ล่มถ้าเขียนไฟล์ไม่ได้)
-            try {
-                com.example.big_bike_auto.customer.CustomerRepository cRepo =
-                        new com.example.big_bike_auto.customer.CustomerRepository();
-                com.example.big_bike_auto.customer.Customer c =
-                        new com.example.big_bike_auto.customer.Customer(
-                                jobId.toString(),                            // ใช้ jobId เป็น id เพื่อโยงไป repair details ได้
-                                safe(tfCustomerName.getText()),
-                                safe(tfPhone.getText()),
-                                null,                                        // ยังไม่มี email ในฟอร์ม
-                                java.time.LocalDateTime.now()
-                        );
-                cRepo.append(c);
-            } catch (Exception cx) {
-                System.err.println("WARN: เขียน customers.json ไม่ได้: " + cx.getMessage());
-            }
+            // เขียนลง customers.json (atomic ภายใน repo)
+            CustomerRepository repo = new CustomerRepository();
+            repo.upsert(c);
 
-            // 4) แจ้งเตือนสำเร็จ + กลับ Dashboard
+            // แจ้งผล และกลับ Dashboard
             Alert ok = new Alert(AlertType.INFORMATION);
             ok.setTitle("สำเร็จ");
             ok.setHeaderText("บันทึกการลงทะเบียนเรียบร้อย");
-            ok.setContentText("กลับไปหน้า Dashboard แล้วเลือกงานเพื่อเปิดรายละเอียดได้");
+            ok.setContentText("กลับไปหน้า Dashboard ได้");
             ok.showAndWait();
 
-            // ★ กลับ Dashboard ผ่าน Router ของคุณ
-            RouterHub.openDashboard(); // = RouterHub.getRouter().navigate("dashboard")
+            RouterHub.openDashboard();
 
         } catch (Exception ex) {
-            showError("บันทึกไม่สำเร็จ", ex.getMessage());
             ex.printStackTrace();
+            showError("บันทึกไม่สำเร็จ", ex.getMessage() != null ? ex.getMessage() : ex.toString());
         }
     }
 
-    /** ตรวจความถูกต้องของฟอร์ม */
+    // ---------- Helpers & Validation ----------
+
+    /** แปลงข้อความสถานะ (ไทย) จาก UI -> Customer.RepairStatus */
+    private static Customer.RepairStatus mapUiStatusToCustomerEnum(String uiText) {
+        // normalize
+        String t = uiText == null ? "" : uiText.trim().toLowerCase(Locale.ROOT);
+        return switch (t) {
+            case "กำลังซ่อม" -> Customer.RepairStatus.REPAIRING;
+            case "รออะไหล่" -> Customer.RepairStatus.WAIT_PARTS;
+            case "กำลังวิเคราะห์อาการ" -> Customer.RepairStatus.DIAGNOSING;
+            case "ตรวจสอบคุณภาพ" -> Customer.RepairStatus.QA;
+            case "เสร็จสิ้น" -> Customer.RepairStatus.DONE;
+            case "รับงานแล้ว" -> Customer.RepairStatus.RECEIVED;
+            default -> Customer.RepairStatus.RECEIVED;
+        };
+    }
+
+    /** ตรวจความครบถ้วนของฟอร์ม */
     private List<String> validateForm() {
         var list = new java.util.ArrayList<String>();
         if (isBlank(tfCustomerName.getText())) list.add("กรุณากรอกชื่อผู้ใช้บริการ");
-        if (isBlank(tfPhone.getText()) || !PHONE_PATTERN.matcher(tfPhone.getText()).matches()) list.add("กรุณากรอกเบอร์โทร 9-10 หลัก");
+        if (isBlank(tfPhone.getText()) || !PHONE_PATTERN.matcher(tfPhone.getText()).matches())
+            list.add("กรุณากรอกเบอร์โทร 9-10 หลัก (เฉพาะตัวเลข)");
         if (isBlank(tfPlate.getText())) list.add("กรุณากรอกทะเบียนรถ");
         if (isBlank(tfProvince.getText())) list.add("กรุณากรอกจังหวัด");
-        if (dpRegisteredDate.getValue() == null) list.add("กรุณาเลือกวันที่รับรถ");
+        if (dpRegisteredDate.getValue() == null) list.add("กรุณาเลือกวันที่ลงทะเบียน/รับรถ");
         if (cbStatus.getValue() == null) list.add("กรุณาเลือกสถานะเริ่มต้น");
         return list;
     }

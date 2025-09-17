@@ -3,9 +3,8 @@ package com.example.big_bike_auto.controller;
 import com.example.big_bike_auto.RouterHub;
 import com.example.big_bike_auto.auth.Role;
 import com.example.big_bike_auto.auth.SessionContext;
-import com.example.big_bike_auto.controller.RepairDetailsController.FileRepairJobRepository;
-import com.example.big_bike_auto.controller.RepairDetailsController.RepairJob;
-import com.example.big_bike_auto.controller.RepairDetailsController.RepairStatus;
+import com.example.big_bike_auto.customer.Customer;
+import com.example.big_bike_auto.customer.CustomerRepository;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
@@ -13,16 +12,18 @@ import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
- * รายการซ่อม:
- * - โหลดข้อมูลงานซ่อมทั้งหมดจาก repository
- * - แสดง TableView
- * - RBAC: แสดง/ซ่อนปุ่มตาม Role
- * - ดับเบิลคลิกแถว → ไปหน้าแก้ตาม Role
+ * RepairListController (customers.json only)
+ * - โหลดรายการ "ลูกค้าที่ลงทะเบียนซ่อม" จาก CustomerRepository
+ * - แสดงใน TableView พร้อมสถานะ (ข้อความไทย) และวันที่รับงาน
+ * - RBAC แสดง/ซ่อนปุ่มตาม Role
+ * - ดับเบิลคลิกแถว: TECHNICIAN/ADMIN -> Repair Details, STAFF -> Register (edit)
+ *
+ * หมายเหตุ:
+ * - jobId = customerId (UUID string ใน Customer.id)
  */
 public class RepairListController {
 
@@ -37,13 +38,13 @@ public class RepairListController {
     @FXML private Button btnEditRepair;    // TECHNICIAN + ADMIN
     @FXML private Button btnEditRegister;  // STAFF + ADMIN
 
-    private final FileRepairJobRepository repo = new FileRepairJobRepository();
+    private final CustomerRepository repo = new CustomerRepository();
     private final ObservableList<JobRow> data = FXCollections.observableArrayList();
     private final DateTimeFormatter DATE = DateTimeFormatter.ISO_LOCAL_DATE;
 
     @FXML
     private void initialize() {
-        // map column -> getter
+        // map column -> getter name ใน JobRow
         colId.setCellValueFactory(new PropertyValueFactory<>("id"));
         colCustomer.setCellValueFactory(new PropertyValueFactory<>("customer"));
         colBike.setCellValueFactory(new PropertyValueFactory<>("bike"));
@@ -52,22 +53,26 @@ public class RepairListController {
 
         tvJobs.setItems(data);
 
-        // RBAC ปุ่ม
+        // RBAC: ซ่อน/แสดงปุ่มตามบทบาท
         Role r = SessionContext.getCurrentRole();
         btnEditRepair.setVisible(r == Role.TECHNICIAN || r == Role.ADMIN);
         btnEditRegister.setVisible(r == Role.STAFF || r == Role.ADMIN);
 
-        // ดับเบิลคลิกตาม Role
+        // ดับเบิลคลิก: ไปหน้าให้เหมาะกับ Role
         tvJobs.setRowFactory(tv -> {
             TableRow<JobRow> row = new TableRow<>();
             row.setOnMouseClicked(ev -> {
                 if (!row.isEmpty() && ev.getClickCount() == 2) {
                     JobRow jr = row.getItem();
+                    if (jr.uuid == null) {
+                        info("ข้อมูลไม่ครบ", "รหัสงานไม่ถูกต้อง");
+                        return;
+                    }
                     if (r == Role.TECHNICIAN) {
                         RouterHub.getRouter().toRepairDetails(jr.uuid);
                     } else if (r == Role.STAFF) {
                         openRegisterEdit(jr.uuid);
-                    } else { // ADMIN default -> ไปหน้า RepairDetails
+                    } else { // ADMIN
                         RouterHub.getRouter().toRepairDetails(jr.uuid);
                     }
                 }
@@ -75,7 +80,7 @@ public class RepairListController {
             return row;
         });
 
-        // โหลดข้อมูลครั้งแรก
+        // โหลดครั้งแรก
         loadData();
     }
 
@@ -87,7 +92,7 @@ public class RepairListController {
     @FXML
     private void onEditRepair() {
         JobRow sel = tvJobs.getSelectionModel().getSelectedItem();
-        if (sel == null) {
+        if (sel == null || sel.uuid == null) {
             info("ยังไม่ได้เลือกรายการ", "กรุณาเลือกแถวก่อน");
             return;
         }
@@ -97,45 +102,105 @@ public class RepairListController {
     @FXML
     private void onEditRegister() {
         JobRow sel = tvJobs.getSelectionModel().getSelectedItem();
-        if (sel == null) {
+        if (sel == null || sel.uuid == null) {
             info("ยังไม่ได้เลือกรายการ", "กรุณาเลือกแถวก่อน");
             return;
         }
         openRegisterEdit(sel.uuid);
     }
 
-    /** ไปหน้า register ในโหมดแก้ไข (ส่ง jobId ผ่าน RegisterEditContext แบบง่าย) */
-    private void openRegisterEdit(UUID jobId) {
-        RegisterEditContext.setEditingJobId(jobId);
+    /** ไปหน้า register ในโหมดแก้ไข (ส่ง customerId เป็น UUID) */
+    private void openRegisterEdit(UUID customerId) {
+        RegisterEditContext.setEditingJobId(customerId);
         RouterHub.getRouter().navigate("register");
     }
 
+    /** โหลดข้อมูลจาก customers.json แล้วแปลงเป็นแถวตาราง */
     private void loadData() {
         try {
             data.clear();
-            List<RepairJob> all = repo.findAll();
-            for (RepairJob j : all) data.add(toRow(j));
+
+            // ดึงทั้งหมดและเรียง: ใหม่สุดก่อน (ตาม registeredAt หรือ receivedDate)
+            List<Customer> all = repo.findAll();
+            List<Customer> ordered = all.stream()
+                    .sorted((a, b) -> {
+                        var aTime = a.getRegisteredAt() != null ? a.getRegisteredAt() :
+                                (a.getReceivedDate() != null ? a.getReceivedDate().atStartOfDay() : null);
+                        var bTime = b.getRegisteredAt() != null ? b.getRegisteredAt() :
+                                (b.getReceivedDate() != null ? b.getReceivedDate().atStartOfDay() : null);
+                        if (aTime == null && bTime == null) return 0;
+                        if (aTime == null) return 1;
+                        if (bTime == null) return -1;
+                        return bTime.compareTo(aTime); // ใหม่ก่อน
+                    })
+                    .collect(Collectors.toList());
+
+            for (Customer c : ordered) {
+                data.add(toRow(c));
+            }
         } catch (Exception ex) {
             ex.printStackTrace();
             error("โหลดข้อมูลไม่สำเร็จ", ex.getMessage());
         }
     }
 
-    private JobRow toRow(RepairJob j) {
-        String date = (j.getReceivedDate() != null) ? DATE.format(j.getReceivedDate()) : "-";
-        String status = (j.getStatus() != null) ? j.getStatus().toString() : RepairStatus.RECEIVED.toString();
-        return new JobRow(j.getJobId(), safe(j.getCustomerName()), safe(j.getBikeModel()), date, status);
+    /** map Customer -> แถวตาราง */
+    private JobRow toRow(Customer c) {
+        UUID uuid = parseUuid(c.getId());
+        String id = uuid != null ? uuid.toString() : "-";
+        String name = safe(c.getName());
+
+        // สังเคราะห์ข้อมูลรถเพื่อโชว์: ป้าย/จังหวัด/โทร
+        String plate = safe(c.getPlate());
+        String prov  = safe(c.getProvince());
+        String phone = safe(c.getPhone());
+        String bike = (plate.isBlank() && prov.isBlank() && phone.isBlank())
+                ? "-" : "%s (%s/%s)".formatted(plate, prov, phone);
+
+        String date = "-";
+        if (c.getReceivedDate() != null) date = DATE.format(c.getReceivedDate());
+        else if (c.getRegisteredAt() != null) date = DATE.format(c.getRegisteredAt().toLocalDate());
+
+        String status = mapStatusToUi(c.getStatus());
+
+        return new JobRow(uuid, name, bike, date, status);
     }
 
-    private static String safe(String s) { return (s == null || s.isBlank()) ? "-" : s; }
+    // ---------- utilities ----------
+    private static UUID parseUuid(String s) {
+        try {
+            return s != null ? UUID.fromString(s) : null;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private static String mapStatusToUi(Customer.RepairStatus st) {
+        if (st == null) return "รับงานแล้ว";
+        return switch (st) {
+            case REPAIRING -> "กำลังซ่อม";
+            case WAIT_PARTS -> "รออะไหล่";
+            case DIAGNOSING -> "กำลังวิเคราะห์อาการ";
+            case QA -> "ตรวจสอบคุณภาพ";
+            case DONE -> "เสร็จสิ้น";
+            case RECEIVED -> "รับงานแล้ว";
+        };
+    }
+
+    private static String safe(String s) { return (s == null || s.isBlank()) ? "" : s.trim(); }
 
     private void info(String h, String c) {
         var a = new Alert(Alert.AlertType.INFORMATION);
-        a.setHeaderText(h); a.setContentText(c); a.showAndWait();
+        a.setHeaderText(h);
+        a.setContentText(c);
+        a.showAndWait();
     }
+
     private void error(String h, String c) {
         var a = new Alert(Alert.AlertType.ERROR);
-        a.setHeaderText(h); a.setContentText(c); a.showAndWait();
+        a.setHeaderText(h);
+        a.setContentText(c);
+        a.showAndWait();
     }
 
     /** row model สำหรับ TableView */
@@ -163,7 +228,7 @@ public class RepairListController {
         public String getStatus() { return status; }
     }
 
-    /** ตัวช่วยส่ง jobId ไปหน้า register ตอนแก้ไข (วิธีง่าย) */
+    /** ตัวช่วยส่ง customerId ไปหน้า register ตอนแก้ไข (วิธีง่าย) */
     public static final class RegisterEditContext {
         private static UUID editingJobId;
         public static void setEditingJobId(UUID id) { editingJobId = id; }
