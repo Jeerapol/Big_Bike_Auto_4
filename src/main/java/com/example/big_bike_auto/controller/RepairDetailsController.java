@@ -1,44 +1,46 @@
 package com.example.big_bike_auto.controller;
 
-import com.example.big_bike_auto.RouterHub;
-import com.example.big_bike_auto.customer.Customer;
-import com.example.big_bike_auto.customer.CustomerRepository;
-import javafx.beans.property.ReadOnlyObjectWrapper;
-import javafx.beans.property.ReadOnlyStringWrapper;
+import com.example.big_bike_auto.router.ReceivesParams;
+import com.example.big_bike_auto.router.RouterHub;
+import javafx.beans.property.*;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
-import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.layout.Region;
-import javafx.stage.Modality;
-import javafx.stage.Stage;
 
-import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
 import java.text.NumberFormat;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.*;
-import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
-public class RepairDetailsController {
+/**
+ * RepairDetailsController:
+ * - รับพารามิเตอร์ {"customerId": "..."} จาก Dashboard
+ * - โหลดข้อมูลลูกค้าจาก data/customers.json
+ * - แสดงหัวงาน + สถานะ + โน้ต + รายการอะไหล่
+ * - แก้ไข/เพิ่ม/ลบอะไหล่ และบันทึกกลับไฟล์
+ */
+public class RepairDetailsController implements ReceivesParams {
 
+    // ===== top info =====
     @FXML private Label lbJobId;
     @FXML private Label lbCustomerName;
     @FXML private Label lbBikeModel;
     @FXML private Label lbReceivedDate;
+    @FXML private ComboBox<String> cbStatus;
 
-    @FXML private ComboBox<String> cbStatus;   // แสดงข้อความไทย แล้ว map -> Customer.RepairStatus
-    @FXML private TextArea taNotes;            // notes ของงานซ่อม (persist ที่ RepairInfo.notes)
+    // ===== note =====
+    @FXML private TextArea taNotes;
 
-    @FXML private TableView<PartUsage> tvParts;
-    @FXML private TableColumn<PartUsage, String>  colPartName;
-    @FXML private TableColumn<PartUsage, Integer> colQty;
-    @FXML private TableColumn<PartUsage, String>  colUnit;
-    @FXML private TableColumn<PartUsage, Double>  colUnitPrice;
-    @FXML private TableColumn<PartUsage, Double>  colTotal;
+    // ===== parts table =====
+    @FXML private TableView<PartRow> tvParts;
+    @FXML private TableColumn<PartRow, String> colPartName;
+    @FXML private TableColumn<PartRow, String> colQty;
+    @FXML private TableColumn<PartRow, String> colUnit;
+    @FXML private TableColumn<PartRow, String> colUnitPrice;
+    @FXML private TableColumn<PartRow, String> colTotal;
 
     @FXML private TextField tfPartName;
     @FXML private TextField tfQty;
@@ -47,267 +49,269 @@ public class RepairDetailsController {
 
     @FXML private Label lbGrandTotal;
 
-    private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("th","TH"));
-    private final ObservableList<PartUsage> parts = FXCollections.observableArrayList();
+    // ===== data =====
+    private static final Path CUSTOMERS = Paths.get("data", "customers.json");
+    private final ObservableList<PartRow> parts = FXCollections.observableArrayList();
+    private Map<String, Object> currentCustomer; // map ของลูกค้าที่กำลังแก้
+    private List<Map<String, Object>> allCustomers; // ทั้งไฟล์
+    private String currentId;
 
-    private String currentCustomerId;     // = Customer.id
-    private Customer currentCustomer;
-    private final CustomerRepository customerRepo = new CustomerRepository();
+    private static final List<String> STATUSES = List.of("RECEIVED", "IN_PROGRESS", "WAITING_PARTS", "COMPLETED", "CANCELLED");
 
-    private boolean openedAsDialog = false;
-    public void setOpenedAsDialog(boolean value) { this.openedAsDialog = value; }
-
-    // -------------------- init --------------------
     @FXML
-    private void initialize() {
-        colPartName.setCellValueFactory(cd -> new ReadOnlyStringWrapper(cd.getValue().getPartName()));
-        colQty.setCellValueFactory(cd -> new ReadOnlyObjectWrapper<>(cd.getValue().getQuantity()));
-        colUnit.setCellValueFactory(cd -> new ReadOnlyStringWrapper(cd.getValue().getUnit()));
-        colUnitPrice.setCellValueFactory(cd -> new ReadOnlyObjectWrapper<>(cd.getValue().getUnitPrice()));
-        colTotal.setCellValueFactory(cd -> new ReadOnlyObjectWrapper<>(cd.getValue().getTotalPrice()));
-
-        colQty.setCellFactory(col -> new TableCell<>() {
-            @Override protected void updateItem(Integer v, boolean empty) {
-                super.updateItem(v, empty);
-                setText(empty || v == null ? null : String.valueOf(v));
-                setStyle("-fx-alignment: CENTER-RIGHT;");
-            }
-        });
-        colUnitPrice.setCellFactory(currencyCell());
-        colTotal.setCellFactory(currencyCell());
-
+    public void initialize() {
+        // map columns
+        colPartName.setCellValueFactory(data -> data.getValue().partNameProperty());
+        colQty.setCellValueFactory(data -> new SimpleStringProperty(formatQty(data.getValue().getQuantity())));
+        colUnit.setCellValueFactory(data -> data.getValue().unitProperty());
+        colUnitPrice.setCellValueFactory(data -> new SimpleStringProperty(formatMoney(data.getValue().getUnitPrice())));
+        colTotal.setCellValueFactory(data -> new SimpleStringProperty(formatMoney(data.getValue().getTotal())));
         tvParts.setItems(parts);
-        lbGrandTotal.setText(currencyFormat.format(0.0));
 
-        cbStatus.getItems().setAll(
-                "รับงานแล้ว","กำลังวิเคราะห์อาการ","รออะไหล่","กำลังซ่อม","ตรวจสอบคุณภาพ","เสร็จสิ้น"
-        );
+        cbStatus.getItems().setAll(STATUSES);
+        updateGrandTotalLabel();
     }
 
-    // เปิดเป็น dialog แยก
-    public static void openWithJobId(UUID jobId) {
-        try {
-            FXMLLoader loader = new FXMLLoader(
-                    RepairDetailsController.class.getResource("/com/example/big_bike_auto/ui/RepairDetails.fxml")
-            );
-            Scene scene = new Scene(loader.load());
-            RepairDetailsController c = loader.getController();
-            c.setOpenedAsDialog(true);
-            c.loadJob(jobId);
-
-            Stage stage = new Stage();
-            stage.setTitle("รายละเอียดงานซ่อม");
-            stage.setScene(scene);
-            stage.initModality(Modality.APPLICATION_MODAL);
-            stage.show();
-        } catch (Exception e) {
-            showException("ไม่สามารถเปิดหน้า Repair Details", e);
+    // ===== ReceivesParams: รับ customerId =====
+    @Override
+    public void onParams(Map<String, Object> params) {
+        String id = safe(params == null ? null : params.get("customerId"));
+        if (id.isBlank()) {
+            showError("พารามิเตอร์ไม่ถูกต้อง", "ไม่พบ customerId");
+            return;
         }
+        this.currentId = id;
+        loadCustomerById(id);
     }
 
-    // โหลดข้อมูลลูกค้าจาก customers.json
-    public void loadJob(UUID jobId) {
-        try {
-            currentCustomerId = jobId.toString();
-            Optional<Customer> opt = customerRepo.findById(currentCustomerId);
-            if (opt.isEmpty()) { showAlert(Alert.AlertType.ERROR,"ไม่พบข้อมูล","ไม่พบ Customer ID: "+currentCustomerId); return; }
-            currentCustomer = opt.get();
-
-            lbJobId.setText(currentCustomerId);
-            lbCustomerName.setText(nullOrDash(currentCustomer.getName()));
-
-            String plate = safe(getSafe(currentCustomer::getPlate));
-            String prov  = safe(getSafe(currentCustomer::getProvince));
-            String phone = safe(getSafe(currentCustomer::getPhone));
-            lbBikeModel.setText((plate.isBlank() && prov.isBlank() && phone.isBlank())
-                    ? "-" : "%s (%s/%s)".formatted(plate, prov, phone));
-
-            LocalDate received = getSafe(currentCustomer::getReceivedDate);
-            if (received == null && currentCustomer.getRegisteredAt() != null) {
-                received = currentCustomer.getRegisteredAt().toLocalDate();
-            }
-            lbReceivedDate.setText(received != null ? received.toString() : "-");
-
-            cbStatus.getSelectionModel().select(enumToUi(currentCustomer.getStatus()));
-
-            // ✅ โหลด RepairInfo (parts + notes)
-            parts.clear();
-            Customer.RepairInfo ri = currentCustomer.getRepair();
-            if (ri != null) {
-                taNotes.setText(safe(ri.getNotes()));
-                if (ri.getParts() != null) {
-                    for (Customer.PartItem pi : ri.getParts()) {
-                        parts.add(new PartUsage(
-                                safe(pi.getPartName()),
-                                pi.getQuantity() == null ? 0 : pi.getQuantity(),
-                                safe(pi.getUnit()),
-                                pi.getUnitPrice() == null ? 0.0 : pi.getUnitPrice()
-                        ));
-                    }
-                }
-                // ใช้ grandTotal ที่มี ถ้ามี
-                double gt = ri.getGrandTotal() != null ? ri.getGrandTotal()
-                        : parts.stream().mapToDouble(PartUsage::getTotalPrice).sum();
-                lbGrandTotal.setText(currencyFormat.format(gt));
-            } else {
-                taNotes.setText(""); // fallback: ถ้ายังไม่เคยมี repair
-                recalcGrandTotal();
-            }
-        } catch (Exception ex) {
-            showException("โหลดงานซ่อมไม่สำเร็จ", ex);
-        }
-    }
-
-    // -------------------- actions --------------------
+    // ===== actions from buttons =====
     @FXML
-    private void onAddPart(ActionEvent e) {
-        try {
-            String name = safe(tfPartName.getText());
-            String unit = safe(tfUnit.getText());
-            int qty = parsePositiveInt(tfQty.getText(), "จำนวนต้องเป็นจำนวนเต็ม > 0");
-            double price = parseNonNegativeDouble(tfUnitPrice.getText(), "ราคา/หน่วย ต้องเป็นตัวเลข ≥ 0");
-            if (name.isBlank()) throw new IllegalArgumentException("กรุณากรอกชื่ออะไหล่");
-            if (unit.isBlank()) throw new IllegalArgumentException("กรุณากรอกหน่วย");
-
-            parts.add(new PartUsage(name, qty, unit, price));
-            clearPartInputs();
-            recalcGrandTotal();
-        } catch (IllegalArgumentException ex) {
-            showAlert(Alert.AlertType.WARNING, "ข้อมูลไม่ถูกต้อง", ex.getMessage());
-        } catch (Exception ex) {
-            showException("เพิ่มรายการไม่สำเร็จ", ex);
+    private void onAddPart() {
+        String name = tfPartName.getText() == null ? "" : tfPartName.getText().trim();
+        String unit = tfUnit.getText() == null ? "" : tfUnit.getText().trim();
+        double qty = parseDouble(tfQty.getText(), "จำนวน");
+        double unitPrice = parseDouble(tfUnitPrice.getText(), "ราคา/หน่วย");
+        if (name.isBlank()) {
+            warn("ข้อมูลไม่ครบ", "กรุณากรอกชื่ออะไหล่");
+            return;
         }
+        if (qty <= 0 || unitPrice < 0) return; // แจ้งแล้วใน parse
+
+        parts.add(new PartRow(name, qty, unit, unitPrice));
+        clearPartInputs();
+        updateGrandTotalLabel();
     }
 
     @FXML
-    private void onRemoveSelectedPart(ActionEvent e) {
-        PartUsage sel = tvParts.getSelectionModel().getSelectedItem();
-        if (sel == null) { showAlert(Alert.AlertType.INFORMATION,"ยังไม่ได้เลือกรายการ","กรุณาเลือกแถวก่อนลบ"); return; }
+    private void onRemoveSelectedPart() {
+        PartRow sel = tvParts.getSelectionModel().getSelectedItem();
+        if (sel == null) {
+            warn("ยังไม่ได้เลือก", "โปรดเลือกรายการในตารางก่อน");
+            return;
+        }
         parts.remove(sel);
-        recalcGrandTotal();
+        updateGrandTotalLabel();
     }
 
     @FXML
-    private void onSave(ActionEvent e) {
-        try {
-            if (currentCustomerId == null) {
-                showAlert(Alert.AlertType.ERROR,"ไม่พบข้อมูลลูกค้า","ไม่มี Customer ปัจจุบัน"); return;
-            }
-
-            // ถ้ายังไม่เคยตั้ง registeredAt -> ตั้งครั้งแรกไว้ให้ (เพื่อการเรียง/แสดงผล)
-            if (currentCustomer != null && currentCustomer.getRegisteredAt() == null) {
-                currentCustomer.setRegisteredAt(LocalDateTime.now());
-                customerRepo.upsert(currentCustomer); // ตั้ง timestamp ไว้รอบเดียว
-            }
-
-            // สถานะใหม่
-            Customer.RepairStatus newStatus = uiToEnum(cbStatus.getValue());
-
-            // ✅ สร้าง RepairInfo จาก UI แล้ว persist
-            Customer.RepairInfo ri = new Customer.RepairInfo();
-            ri.setNotes(safe(taNotes.getText()));
-
-            List<Customer.PartItem> toSave = new ArrayList<>();
-            double grand = 0.0;
-            for (PartUsage p : parts) {
-                toSave.add(new Customer.PartItem(p.getPartName(), p.getQuantity(), p.getUnit(), p.getUnitPrice()));
-                grand += p.getTotalPrice();
-            }
-            ri.setParts(toSave);
-            ri.setGrandTotal(grand);
-            // lastUpdated จะถูกเซ็ตใน repository (updateRepair)
-
-            customerRepo.updateRepair(currentCustomerId, ri, newStatus);
-
-            showAlert(Alert.AlertType.INFORMATION,"บันทึกสำเร็จ","อัปเดตงานซ่อมเรียบร้อยแล้ว");
-        } catch (Exception ex) {
-            showException("บันทึกไม่สำเร็จ", ex);
+    private void onSave() {
+        if (currentCustomer == null || allCustomers == null) {
+            warn("ไม่พร้อมบันทึก", "ยังไม่พบข้อมูลลูกค้า");
+            return;
         }
+        // อัปเดตค่าจาก UI -> currentCustomer map
+        setMap(currentCustomer, "status", cbStatus.getValue());
+        Map<String, Object> repair = asMap(currentCustomer.get("repair"));
+        if (repair == null) {
+            repair = new LinkedHashMap<>();
+            currentCustomer.put("repair", repair);
+        }
+        setMap(repair, "notes", taNotes.getText());
+        setMap(repair, "parts", parts.stream().map(PartRow::toMap).collect(Collectors.toList()));
+        setMap(repair, "grandTotal", parts.stream().mapToDouble(PartRow::getTotal).sum());
+        setMap(repair, "lastUpdated", java.time.LocalDateTime.now().toString());
+
+        // เขียนกลับไฟล์
+        writeCustomers(allCustomers);
+        info("บันทึกสำเร็จ", "อัปเดตข้อมูลงานซ่อมแล้ว");
+        // อยู่หน้านี้ต่อ หรือจะกลับหน้าก่อนก็ได้ตามต้องการ
     }
 
     @FXML
-    private void onBack(ActionEvent e) {
-        try {
-            if (openedAsDialog) {
-                ((Stage) tvParts.getScene().getWindow()).close();
-            } else {
-                RouterHub.openDashboard();
+    private void onBack() {
+        RouterHub.getRouter().navigate("dashboard");
+    }
+
+    // ===== load/save helpers =====
+    @SuppressWarnings("unchecked")
+    private void loadCustomerById(String id) {
+        this.allCustomers = readCustomers();
+        this.currentCustomer = allCustomers.stream()
+                .filter(m -> id.equals(safe(m.get("id"))))
+                .findFirst()
+                .orElse(null);
+
+        if (currentCustomer == null) {
+            showError("ไม่พบข้อมูล", "ไม่พบลูกค้า/งานซ่อม id=" + id);
+            return;
+        }
+
+        // ---- หัวงาน ----
+        lbJobId.setText(safe(currentCustomer.get("id")));
+        lbCustomerName.setText(safe(currentCustomer.getOrDefault("name", "-")));
+        lbBikeModel.setText(safe(currentCustomer.getOrDefault("bikeModel", "-")));
+        String received = safe(currentCustomer.get("receivedDate"));
+        if (!received.isBlank()) {
+            try {
+                LocalDate d = LocalDate.parse(received);
+                lbReceivedDate.setText(String.format("%02d/%02d/%04d", d.getDayOfMonth(), d.getMonthValue(), d.getYear()));
+            } catch (Exception ignore) { lbReceivedDate.setText(received); }
+        } else lbReceivedDate.setText("-");
+
+        String status = safe(currentCustomer.get("status")).toUpperCase(Locale.ROOT);
+        if (!STATUSES.contains(status)) status = "RECEIVED";
+        cbStatus.getSelectionModel().select(status);
+
+        // ---- repair ----
+        Map<String, Object> repair = asMap(currentCustomer.get("repair"));
+        String notes = repair == null ? "" : safe(repair.get("notes"));
+        taNotes.setText(notes);
+
+        parts.clear();
+        if (repair != null && repair.get("parts") instanceof List<?> list) {
+            for (Object o : list) {
+                if (o instanceof Map<?,?> m) {
+                    String partName = safe(m.get("partName"));
+                    double quantity  = asDouble(m.get("quantity"));
+                    String unit      = safe(m.get("unit"));
+                    double unitPrice = asDouble(m.get("unitPrice"));
+                    if (!partName.isBlank()) parts.add(new PartRow(partName, quantity, unit, unitPrice));
+                }
             }
+        }
+        updateGrandTotalLabel();
+    }
+
+    private List<Map<String, Object>> readCustomers() {
+        try {
+            ensureArrayFile(CUSTOMERS);
+            String json = Files.readString(CUSTOMERS, StandardCharsets.UTF_8).trim();
+            if (json.isEmpty()) return new ArrayList<>();
+            com.google.gson.Gson gson = new com.google.gson.Gson();
+            java.lang.reflect.Type type = new com.google.gson.reflect.TypeToken<List<Map<String, Object>>>(){}.getType();
+            List<Map<String, Object>> list = gson.fromJson(json, type);
+            return list != null ? new ArrayList<>(list) : new ArrayList<>();
         } catch (Exception ex) {
-            Stage st = (Stage) tvParts.getScene().getWindow();
-            if (st != null) st.hide();
+            return new ArrayList<>();
         }
     }
 
-    // -------------------- helpers --------------------
-    private void recalcGrandTotal() {
-        double total = parts.stream().mapToDouble(PartUsage::getTotalPrice).sum();
-        lbGrandTotal.setText(currencyFormat.format(total));
+    private void writeCustomers(List<Map<String, Object>> list) {
+        try {
+            ensureArrayFile(CUSTOMERS);
+            com.google.gson.Gson gson = new com.google.gson.GsonBuilder().setPrettyPrinting().create();
+            String json = gson.toJson(list);
+            Files.writeString(CUSTOMERS, json, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        } catch (Exception ex) {
+            showError("บันทึกไม่สำเร็จ", ex.getMessage());
+        }
     }
+
+    private void ensureArrayFile(Path file) throws java.io.IOException {
+        Path dir = file.getParent();
+        if (dir != null && !Files.exists(dir)) Files.createDirectories(dir);
+        if (!Files.exists(file)) Files.writeString(file, "[]", StandardCharsets.UTF_8, StandardOpenOption.CREATE);
+    }
+
+    // ===== misc utils =====
+    private String safe(Object o) { return o == null ? "" : String.valueOf(o).trim(); }
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> asMap(Object o) { return (o instanceof Map) ? (Map<String, Object>) o : null; }
+
+    private void setMap(Map<String, Object> m, String k, Object v) {
+        if (v == null) m.remove(k); else m.put(k, v);
+    }
+
     private void clearPartInputs() {
-        tfPartName.clear(); tfQty.clear(); tfUnit.clear(); tfUnitPrice.clear(); tfPartName.requestFocus();
+        tfPartName.clear(); tfQty.clear(); tfUnit.clear(); tfUnitPrice.clear();
+        tfPartName.requestFocus();
     }
 
-    private static Customer.RepairStatus uiToEnum(String ui) {
-        String t = ui == null ? "" : ui.trim();
-        return switch (t) {
-            case "กำลังซ่อม" -> Customer.RepairStatus.REPAIRING;
-            case "รออะไหล่" -> Customer.RepairStatus.WAIT_PARTS;
-            case "กำลังวิเคราะห์อาการ" -> Customer.RepairStatus.DIAGNOSING;
-            case "ตรวจสอบคุณภาพ" -> Customer.RepairStatus.QA;
-            case "เสร็จสิ้น" -> Customer.RepairStatus.DONE; // NOTE: ถ้า enum คุณคือ DONE ให้แก้เป็น DONE
-            default -> Customer.RepairStatus.RECEIVED;
-        };
-    }
-    private static String enumToUi(Customer.RepairStatus st) {
-        if (st == null) return "รับงานแล้ว";
-        return switch (st) {
-            case REPAIRING -> "กำลังซ่อม";
-            case WAIT_PARTS -> "รออะไหล่";
-            case DIAGNOSING -> "กำลังวิเคราะห์อาการ";
-            case QA -> "ตรวจสอบคุณภาพ";
-            case DONE -> "เสร็จสิ้น";
-            case RECEIVED -> "รับงานแล้ว";
-        };
-    }
-
-    private static String safe(String s){ return s == null ? "" : s.trim(); }
-    private static String nullOrDash(String s){ return (s == null || s.isBlank()) ? "-" : s; }
-    private static int parsePositiveInt(String s,String err){ try{ int v=Integer.parseInt(safe(s)); if(v<=0) throw new NumberFormatException(); return v;}catch(Exception e){ throw new IllegalArgumentException(err);} }
-    private static double parseNonNegativeDouble(String s,String err){ try{ double v=Double.parseDouble(safe(s)); if(v<0) throw new NumberFormatException(); return v;}catch(Exception e){ throw new IllegalArgumentException(err);} }
-
-    private static void showAlert(Alert.AlertType t,String h,String c){ Alert a=new Alert(t); a.setHeaderText(h); a.setContentText(c); a.getDialogPane().setMinHeight(Region.USE_PREF_SIZE); a.showAndWait();}
-    private static void showException(String h, Exception ex){ ex.printStackTrace(); Alert a=new Alert(Alert.AlertType.ERROR); a.setHeaderText(h); a.setContentText(ex.getMessage()!=null? ex.getMessage(): ex.toString()); a.getDialogPane().setMinHeight(Region.USE_PREF_SIZE); a.showAndWait(); }
-    private static <T> T getSafe(Supplier<T> s){ try{ return s.get(); }catch(Throwable t){ return null; } }
-
-    private javafx.util.Callback<TableColumn<PartUsage, Double>, TableCell<PartUsage, Double>> currencyCell(){
-        return col -> new TableCell<>(){
-            @Override protected void updateItem(Double v, boolean empty){
-                super.updateItem(v, empty);
-                setText(empty || v==null ? null : currencyFormat.format(v));
-                setStyle("-fx-alignment: CENTER-RIGHT;");
-            }
-        };
-    }
-
-    // Row model บน UI
-    public static class PartUsage implements Serializable {
-        private String partName;
-        private int quantity;
-        private String unit;
-        private double unitPrice;
-        public PartUsage(){}
-        public PartUsage(String partName,int quantity,String unit,double unitPrice){
-            this.partName=partName; this.quantity=quantity; this.unit=unit; this.unitPrice=unitPrice;
+    private double parseDouble(String s, String fieldName) {
+        try {
+            double d = Double.parseDouble(s == null ? "" : s.trim());
+            if (d < 0) throw new NumberFormatException("negative");
+            return d;
+        } catch (Exception ex) {
+            warn("ข้อมูลไม่ถูกต้อง", fieldName + " ต้องเป็นตัวเลข >= 0");
+            return -1;
         }
-        public String getPartName(){ return partName; }
-        public void setPartName(String partName){ this.partName=partName; }
-        public int getQuantity(){ return quantity; }
-        public void setQuantity(int quantity){ this.quantity=quantity; }
-        public String getUnit(){ return unit; }
-        public void setUnit(String unit){ this.unit=unit; }
-        public double getUnitPrice(){ return unitPrice; }
-        public void setUnitPrice(double unitPrice){ this.unitPrice=unitPrice; }
-        public double getTotalPrice(){ return unitPrice*quantity; }
+    }
+
+    private double asDouble(Object o) {
+        if (o == null) return 0;
+        try { return Double.parseDouble(String.valueOf(o)); } catch (Exception e) { return 0; }
+    }
+
+    private String formatMoney(double v) {
+        NumberFormat f = NumberFormat.getNumberInstance(new Locale("th", "TH"));
+        f.setMinimumFractionDigits(0); f.setMaximumFractionDigits(2);
+        return f.format(v);
+    }
+    private String formatQty(double v) {
+        if (Math.abs(v - Math.rint(v)) < 1e-9) return String.valueOf((long) Math.rint(v));
+        return formatMoney(v);
+    }
+
+    private void updateGrandTotalLabel() {
+        double sum = parts.stream().mapToDouble(PartRow::getTotal).sum();
+        lbGrandTotal.setText(formatMoney(sum));
+    }
+
+    private void warn(String title, String msg) {
+        Alert a = new Alert(Alert.AlertType.WARNING, msg, ButtonType.OK);
+        a.setHeaderText(title);
+        a.showAndWait();
+    }
+    private void info(String title, String msg) {
+        Alert a = new Alert(Alert.AlertType.INFORMATION, msg, ButtonType.OK);
+        a.setHeaderText(title);
+        a.showAndWait();
+    }
+    private void showError(String title, String msg) {
+        Alert a = new Alert(Alert.AlertType.ERROR, msg, ButtonType.OK);
+        a.setHeaderText(title);
+        a.showAndWait();
+    }
+
+    // ===== row model for TableView =====
+    public static class PartRow {
+        private final StringProperty partName = new SimpleStringProperty();
+        private final DoubleProperty quantity = new SimpleDoubleProperty(1);
+        private final StringProperty unit = new SimpleStringProperty();
+        private final DoubleProperty unitPrice = new SimpleDoubleProperty(0);
+
+        public PartRow(String partName, double quantity, String unit, double unitPrice) {
+            this.partName.set(partName);
+            this.quantity.set(quantity);
+            this.unit.set(unit);
+            this.unitPrice.set(unitPrice);
+        }
+
+        public StringProperty partNameProperty() { return partName; }
+        public StringProperty unitProperty() { return unit; }
+        public double getQuantity() { return quantity.get(); }
+        public double getUnitPrice() { return unitPrice.get(); }
+        public double getTotal() { return getQuantity() * getUnitPrice(); }
+
+        public Map<String, Object> toMap() {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("partName", partName.get());
+            m.put("quantity", getQuantity());
+            m.put("unit", unit.get());
+            m.put("unitPrice", getUnitPrice());
+            return m;
+        }
     }
 }

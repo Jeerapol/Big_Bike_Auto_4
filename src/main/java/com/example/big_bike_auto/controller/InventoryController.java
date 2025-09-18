@@ -1,22 +1,38 @@
 package com.example.big_bike_auto.controller;
 
-import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 
-/**
- * หน้าสินค้าคงคลัง (ตัวอย่าง)
- * - ใส่ TableView แบบ dummy
- */
 public class InventoryController {
 
-    @FXML private TableView<String> table;
-    @FXML private TableColumn<String, String> colName;
+    @FXML private TableView<?> tvInventory;
+    @FXML private TableColumn<?, ?> colPartName;
+    @FXML private TableColumn<?, ?> colQty;
+    @FXML private TableColumn<?, ?> colUnit;
+    @FXML private TableColumn<?, ?> colPrice;
 
     @FXML
-    private void initialize() {
-        colName.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()));
-        table.setItems(FXCollections.observableArrayList("อะไหล่ A", "อะไหล่ B", "อะไหล่ C"));
+    public void initialize() {
+        System.out.println("InventoryController initialized");
+        // TODO: โหลดข้อมูล inventory จาก service
+    }
+
+    @FXML
+    private void onRefresh() {
+        System.out.println("รีเฟรชตารางสต็อก");
+        // TODO: reload data
+    }
+
+    @FXML
+    private void onAddPart() {
+        System.out.println("เพิ่มอะไหล่ใหม่");
+        // TODO: แสดง dialog กรอกข้อมูล -> เพิ่มลง table
+    }
+
+    @FXML
+    private void onRemovePart() {
+        System.out.println("ลบอะไหล่ที่เลือก");
+        // TODO: ลบ row ที่เลือก
     }
 }

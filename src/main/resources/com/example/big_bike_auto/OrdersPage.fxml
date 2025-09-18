@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<VBox xmlns="http://javafx.com/javafx/21.0.6"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.example.big_bike_auto.controller.OrdersPageController"
+      spacing="8" prefWidth="800" prefHeight="600">
+    <children>
+        <ToolBar>
+            <items>
+                <Button fx:id="btnPlace" text="สั่งซื้อ" onAction="#onPlace"/>
+                <Button fx:id="btnReceive" text="รับเข้า" onAction="#onReceive"/>
+                <Button fx:id="btnCancel" text="ยกเลิก" onAction="#onCancel"/>
+                <Button text="รีเฟรช" onAction="#onRefresh"/>
+            </items>
+        </ToolBar>
+        <TableView fx:id="tvOrders" prefHeight="560">
+            <columns>
+                <TableColumn fx:id="colId" text="เลขที่ใบสั่งซื้อ" prefWidth="160"/>
+                <TableColumn fx:id="colSupplier" text="ผู้ขาย" prefWidth="180"/>
+                <TableColumn fx:id="colOrderDate" text="วันที่สั่งซื้อ" prefWidth="140"/>
+                <TableColumn fx:id="colItemCount" text="จำนวนรายการ" prefWidth="120"/>
+                <TableColumn fx:id="colStatus" text="สถานะ" prefWidth="100"/>
+            </columns>
+        </TableView>
+    </children>
+</VBox>

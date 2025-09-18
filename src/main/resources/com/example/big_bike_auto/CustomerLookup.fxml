@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.example.big_bike_auto.controller.CustomerLookupController">
+
+    <top>
+        <VBox spacing="8" BorderPane.alignment="CENTER">
+            <padding>
+                <Insets top="12" right="12" bottom="12" left="12"/>
+            </padding>
+
+            <Label text="ค้นหางานซ่อมด้วย Customer Code"
+                   style="-fx-font-size: 18; -fx-font-weight: bold;"/>
+
+            <HBox spacing="8">
+                <TextField fx:id="tfCode" promptText="ใส่รหัสลูกค้า 10 หลัก เช่น CLCXWSI89B" HBox.hgrow="ALWAYS"/>
+                <Button text="ค้นหา" onAction="#onSearch" defaultButton="true"/>
+                <Button text="ล้าง" onAction="#onClear"/>
+            </HBox>
+        </VBox>
+    </top>
+
+    <center>
+        <VBox spacing="10">
+            <padding>
+                <Insets top="8" right="12" bottom="12" left="12"/>
+            </padding>
+
+            <TitledPane text="ข้อมูลหัวงาน" expanded="true">
+                <content>
+                    <GridPane hgap="10" vgap="8">
+                        <!-- ✅ ใช้ container ที่ถูกต้องสำหรับ column/row constraints -->
+                        <columnConstraints>
+                            <ColumnConstraints minWidth="120"/>
+                            <ColumnConstraints hgrow="ALWAYS"/>
+                            <ColumnConstraints minWidth="120"/>
+                            <ColumnConstraints hgrow="ALWAYS"/>
+                        </columnConstraints>
+                        <rowConstraints>
+                            <RowConstraints minHeight="28"/>
+                            <RowConstraints minHeight="28"/>
+                            <RowConstraints minHeight="28"/>
+                            <RowConstraints minHeight="28"/>
+                        </rowConstraints>
+
+                        <Label text="Customer Code:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+                        <Label fx:id="lbCode" style="-fx-font-weight: bold;" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+                        <Label text="ชื่อลูกค้า:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+                        <Label fx:id="lbName" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+                        <Label text="ทะเบียน:" GridPane.rowIndex="1" GridPane.columnIndex="2"/>
+                        <Label fx:id="lbPlate" GridPane.rowIndex="1" GridPane.columnIndex="3"/>
+
+                        <Label text="สถานะ:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+                        <Label fx:id="lbStatus" style="-fx-font-weight: bold;" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+
+                        <Label text="อัปเดตล่าสุด:" GridPane.rowIndex="2" GridPane.columnIndex="2"/>
+                        <Label fx:id="lbUpdated" GridPane.rowIndex="2" GridPane.columnIndex="3"/>
+
+                        <Label text="วันที่รับงาน:" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+                        <Label fx:id="lbReceived" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+
+                        <Label text="รุ่นรถ:" GridPane.rowIndex="3" GridPane.columnIndex="2"/>
+                        <Label fx:id="lbBike" GridPane.rowIndex="3" GridPane.columnIndex="3"/>
+                    </GridPane>
+                </content>
+            </TitledPane>
+
+            <TitledPane text="อะไหล่ที่ใช้" expanded="true">
+                <content>
+                    <TableView fx:id="tvParts" prefHeight="260">
+                        <columns>
+                            <TableColumn fx:id="colPartName" text="รายการอะไหล่" prefWidth="220"/>
+                            <TableColumn fx:id="colQty" text="จำนวน" prefWidth="90"/>
+                            <TableColumn fx:id="colUnit" text="หน่วย" prefWidth="100"/>
+                            <TableColumn fx:id="colUnitPrice" text="ราคา/หน่วย" prefWidth="120"/>
+                            <TableColumn fx:id="colTotal" text="ราคารวม" prefWidth="120"/>
+                        </columns>
+                    </TableView>
+                </content>
+            </TitledPane>
+
+            <HBox spacing="8" alignment="CENTER_RIGHT">
+                <Label text="รวมทั้งสิ้น:"/>
+                <Label fx:id="lbGrandTotal" style="-fx-font-weight: bold;"/>
+            </HBox>
+
+            <TitledPane text="บันทึกช่าง (Notes)" expanded="true">
+                <content>
+                    <TextArea fx:id="taNotes" prefRowCount="4" wrapText="true" editable="false"/>
+                </content>
+            </TitledPane>
+        </VBox>
+    </center>
+</BorderPane>

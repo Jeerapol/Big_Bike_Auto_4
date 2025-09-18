@@ -1,32 +1,41 @@
 package com.example.big_bike_auto.controller;
 
-import com.example.big_bike_auto.RouterHub;
-import com.example.big_bike_auto.customer.Customer;
-import com.example.big_bike_auto.customer.CustomerRepository;
+import com.example.big_bike_auto.common.JsonUtil;
+import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
-import javafx.scene.control.Alert.AlertType;
+import javafx.scene.layout.GridPane;
 import javafx.util.StringConverter;
 
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.UUID;
-import java.util.regex.Pattern;
+import java.time.chrono.ThaiBuddhistDate;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 /**
- * RegisterController (customers.json version)
- * - ตรงกับ FXML เดิม: fx:id = tfCustomerName, tfPhone, tfPlate, tfProvince, dpRegisteredDate, cbStatus, taSymptom, btnSave
- * - บันทึกลง data/customers.json ผ่าน CustomerRepository (Single Source of Truth ฝั่ง Register)
- * - แสดงข้อความสถานะเป็นภาษาไทยให้ตรงกับหน้า Repair (UI เท่านั้น)
+ * RegisterController:
+ * - ใส่ค่า default วันที่เป็น "วันนี้"
+ * - แสดงผลวันที่แบบไทย (พ.ศ.) ใน DatePicker ด้วย StringConverter
+ * - เติมตัวเลือกสถานะลง ComboBox
+ * - กดบันทึก -> validate, สร้าง customerCode 10 ตัว (A-Z0-9), บันทึกลง data/customers.json
  *
- * หมายเหตุ:
- * - นี่เป็นการ "แก้เฉพาะ UI/ข้อความ" ให้ตรงกัน ข้อมูลยังเป็นโมเดล Customer เดิม (Customer.RepairStatus)
+ * Junior Tips:
+ *  - fx:id ต้องตรงกับ FXML ทุกตัว ไม่งั้น field จะเป็น null
+ *  - DatePicker เก็บค่าเป็น LocalDate (ค.ศ.) แต่เราทำ Converter ให้ "แสดง" เป็น พ.ศ.
+ *
+ * Senior Notes:
+ *  - ใช้ SecureRandom ในการสร้างโค้ดลูกค้า ลด collision
+ *  - JsonUtil.ensureJsonArrayFile() เพื่อสร้างไฟล์ [] ถ้ายังไม่มี
+ *  - Validate field ขั้นพื้นฐานก่อนบันทึก
  */
 public class RegisterController {
 
+    // ===== FXML จากไฟล์ RegisterPage.fxml (ของคุณ) =====
     @FXML private TextField tfCustomerName;
     @FXML private TextField tfPhone;
     @FXML private TextField tfPlate;
@@ -36,117 +45,245 @@ public class RegisterController {
     @FXML private TextArea taSymptom;
     @FXML private Button btnSave;
 
-    private static final Pattern PHONE_PATTERN = Pattern.compile("\\d{9,10}");
+    // ===== ค่าคงที่/ตัวช่วย =====
+    private static final String CUSTOMERS_JSON = "data/customers.json";
+
+    // รายการสถานะมาตรฐาน (ปรับเพิ่ม/ลดได้ตาม flow ของคุณ)
+    private static final List<String> STATUSES = List.of(
+            "RECEIVED",      // รับรถแล้ว
+            "IN_PROGRESS",   // กำลังซ่อม
+            "COMPLETED",     // ซ่อมเสร็จ
+            "DELIVERED"      // ส่งมอบแล้ว
+    );
+
+    // ฟอร์แมตวันที่ที่ "แสดงผล" ให้ผู้ใช้ (ไทย/พ.ศ.)
+    private static final DateTimeFormatter TH_DISPLAY_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+    // สำหรับสุ่มรหัสลูกค้า (A-Z0-9) 10 ตัว
+    private static final SecureRandom RNG = new SecureRandom();
+    private static final char[] ALPHANUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".toCharArray();
+    private static final int CUSTOMER_CODE_LEN = 10;
 
     @FXML
-    private void initialize() {
-        // วันที่เริ่มต้น = วันนี้
+    public void initialize() {
+        // 1) ใส่ค่า default เป็น "วันนี้"
         dpRegisteredDate.setValue(LocalDate.now());
-        dpRegisteredDate.setConverter(new StringConverter<>() {
-            @Override public String toString(LocalDate date) { return date != null ? date.toString() : ""; }
-            @Override public LocalDate fromString(String s) { return (s == null || s.isBlank()) ? null : LocalDate.parse(s); }
-        });
 
-        // ✅ ข้อความสถานะให้ตรงกับหน้า Repair (ภาษาไทย)
-        cbStatus.getItems().setAll(
-                "รับงานแล้ว",          // RECEIVED
-                "กำลังวิเคราะห์อาการ",   // DIAGNOSING
-                "รออะไหล่",             // WAIT_PARTS
-                "กำลังซ่อม",            // REPAIRING
-                "ตรวจสอบคุณภาพ",        // QA
-                "เสร็จสิ้น"             // DONE (ของฝั่ง Customer)
-        );
-        cbStatus.getSelectionModel().selectFirst();
+        // 1.1) ทำให้ DatePicker "แสดงผล" เป็นไทย/พ.ศ. (แต่ค่าภายในยังเป็น LocalDate ค.ศ.)
+        dpRegisteredDate.setConverter(buildThaiBuddhistConverter());
 
-        // ให้ช่องเบอร์โทรรับเฉพาะตัวเลขตอนพิมพ์
-        tfPhone.setTextFormatter(new TextFormatter<>(change ->
-                change.getControlNewText().matches("\\d*") ? change : null));
+        // 2) เติมสถานะลง ComboBox + เลือกค่าเริ่มต้น
+        cbStatus.setItems(FXCollections.observableArrayList(STATUSES));
+        cbStatus.setPromptText("เลือกสถานะ");
+        cbStatus.getSelectionModel().selectFirst(); // default = RECEIVED
 
+        // 3) bind action ปุ่มบันทึก
         btnSave.setOnAction(e -> onSave());
     }
 
-    /** กดบันทึก */
-    private void onSave() {
-        var errors = validateForm();
-        if (!errors.isEmpty()) {
-            showError("กรอกข้อมูลไม่ครบถ้วน", String.join("\n", errors));
-            return;
-        }
+    /**
+     * Converter สำหรับ DatePicker:
+     * - toString: แสดงผลเป็น พ.ศ. (dd/MM/yyyy โดยเพิ่มปี +543) ด้วย ThaiBuddhistDate
+     * - fromString: แปลงสตริงของผู้ใช้ (dd/MM/yyyy พ.ศ.) กลับเป็น LocalDate (ค.ศ.) โดยลดย้อนปี 543
+     */
+    private StringConverter<LocalDate> buildThaiBuddhistConverter() {
+        return new StringConverter<>() {
+            @Override
+            public String toString(LocalDate date) {
+                if (date == null) return "";
+                // ใช้ ThaiBuddhistDate เพื่อได้ปีพุทธศักราชโดยอัตโนมัติ
+                ThaiBuddhistDate th = ThaiBuddhistDate.from(date);
+                // แสดงผลด้วยฟอร์แมต dd/MM/yyyy (ของปีพุทธ)
+                return TH_DISPLAY_FMT.format(th);
+            }
 
-        try {
-            // map ข้อความสถานะ (ไทย) -> Enum ของ Customer
-            Customer.RepairStatus st = mapUiStatusToCustomerEnum(Objects.toString(cbStatus.getValue(), ""));
-
-            // สร้าง Customer และกำหนดฟิลด์
-            Customer c = new Customer();
-            c.setId(UUID.randomUUID().toString());            // ระบุตัวตนด้วย UUID
-            c.setName(safe(tfCustomerName.getText()));
-            c.setPhone(safe(tfPhone.getText()));
-            c.setPlate(safe(tfPlate.getText()));
-            c.setProvince(safe(tfProvince.getText()));
-            c.setBikeModel(null);                              // optional ในโมเดลเดิม
-            c.setStatus(st);
-            c.setSymptom(safe(taSymptom.getText()));
-            c.setReceivedDate(dpRegisteredDate.getValue());    // วันที่รับรถจาก DatePicker
-            c.setRegisteredAt(LocalDateTime.now());            // เวลาบันทึกเข้า system
-
-            // เขียนลง customers.json (atomic ภายใน repo)
-            CustomerRepository repo = new CustomerRepository();
-            repo.upsert(c);
-
-            // แจ้งผล และกลับ Dashboard
-            Alert ok = new Alert(AlertType.INFORMATION);
-            ok.setTitle("สำเร็จ");
-            ok.setHeaderText("บันทึกการลงทะเบียนเรียบร้อย");
-            ok.setContentText("กลับไปหน้า Dashboard ได้");
-            ok.showAndWait();
-
-            RouterHub.openDashboard();
-
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            showError("บันทึกไม่สำเร็จ", ex.getMessage() != null ? ex.getMessage() : ex.toString());
-        }
-    }
-
-    // ---------- Helpers & Validation ----------
-
-    /** แปลงข้อความสถานะ (ไทย) จาก UI -> Customer.RepairStatus */
-    private static Customer.RepairStatus mapUiStatusToCustomerEnum(String uiText) {
-        // normalize
-        String t = uiText == null ? "" : uiText.trim().toLowerCase(Locale.ROOT);
-        return switch (t) {
-            case "กำลังซ่อม" -> Customer.RepairStatus.REPAIRING;
-            case "รออะไหล่" -> Customer.RepairStatus.WAIT_PARTS;
-            case "กำลังวิเคราะห์อาการ" -> Customer.RepairStatus.DIAGNOSING;
-            case "ตรวจสอบคุณภาพ" -> Customer.RepairStatus.QA;
-            case "เสร็จสิ้น" -> Customer.RepairStatus.DONE;
-            case "รับงานแล้ว" -> Customer.RepairStatus.RECEIVED;
-            default -> Customer.RepairStatus.RECEIVED;
+            @Override
+            public LocalDate fromString(String text) {
+                if (text == null || text.trim().isEmpty()) return null;
+                // ผู้ใช้พิมพ์ dd/MM/yyyy (ไทย/พ.ศ.) -> parse เป็น LocalDate พ.ศ. แล้วแปลงกลับเป็น ค.ศ.
+                // เราจะแยกวัน/เดือน/ปีเองเพื่อเลี่ยง parsing ที่สลับคริสต์/พุทธ
+                try {
+                    String[] parts = text.trim().split("[/\\-]");
+                    if (parts.length != 3) throw new IllegalArgumentException("รูปแบบวันที่ควรเป็น dd/MM/yyyy");
+                    int d = Integer.parseInt(parts[0]);
+                    int m = Integer.parseInt(parts[1]);
+                    int buddhistYear = Integer.parseInt(parts[2]);
+                    int isoYear = buddhistYear - 543; // แปลง พ.ศ. -> ค.ศ.
+                    return LocalDate.of(isoYear, m, d);
+                } catch (Exception ex) {
+                    // ถ้า parse ไม่ได้ ให้ปล่อย empty -> ผู้ใช้จะเห็นว่าไม่เปลี่ยนค่า
+                    showWarn("รูปแบบวันที่ไม่ถูกต้อง", "โปรดใช้รูปแบบ dd/MM/yyyy (เช่น 01/10/2568)");
+                    return null;
+                }
+            }
         };
     }
 
-    /** ตรวจความครบถ้วนของฟอร์ม */
-    private List<String> validateForm() {
-        var list = new java.util.ArrayList<String>();
-        if (isBlank(tfCustomerName.getText())) list.add("กรุณากรอกชื่อผู้ใช้บริการ");
-        if (isBlank(tfPhone.getText()) || !PHONE_PATTERN.matcher(tfPhone.getText()).matches())
-            list.add("กรุณากรอกเบอร์โทร 9-10 หลัก (เฉพาะตัวเลข)");
-        if (isBlank(tfPlate.getText())) list.add("กรุณากรอกทะเบียนรถ");
-        if (isBlank(tfProvince.getText())) list.add("กรุณากรอกจังหวัด");
-        if (dpRegisteredDate.getValue() == null) list.add("กรุณาเลือกวันที่ลงทะเบียน/รับรถ");
-        if (cbStatus.getValue() == null) list.add("กรุณาเลือกสถานะเริ่มต้น");
-        return list;
+    /**
+     * เมื่อกดบันทึก:
+     * - ตรวจความถูกต้องของข้อมูล
+     * - สร้าง customerCode ยาว 10 ตัว (A-Z0-9)
+     * - ต่อท้ายข้อมูลลง customers.json
+     */
+    private void onSave() {
+        // --- 1) เก็บค่าจากฟอร์ม ---
+        String name = safe(tfCustomerName.getText());
+        String phone = safe(tfPhone.getText());
+        String plate = safe(tfPlate.getText());
+        String province = safe(tfProvince.getText());
+        LocalDate registeredDate = dpRegisteredDate.getValue();
+        String status = cbStatus.getValue(); // จะไม่เป็น null เพราะ selectFirst แล้ว
+        String symptom = safe(taSymptom.getText());
+
+        // --- 2) Validate พื้นฐาน ---
+        String err = validateForm(name, phone, plate, province, registeredDate, status);
+        if (err != null) {
+            showWarn("ข้อมูลไม่ครบถ้วน", err);
+            return;
+        }
+
+        // --- 3) เตรียม JSON object ของลูกค้าใหม่ ---
+        // โครงสร้างยึดตาม JSON ที่คุณเคยส่ง (เพิ่ม customerCode 10 ตัว)
+        Map<String, Object> customer = new LinkedHashMap<>();
+        customer.put("id", UUID.randomUUID().toString());
+        customer.put("customerCode", genCustomerCode(CUSTOMER_CODE_LEN)); // <<<<< โค้ดลูกค้า 10 ตัว
+        customer.put("name", name);
+        customer.put("phone", phone);
+        customer.put("plate", plate);
+        customer.put("province", province);
+        customer.put("bikeModel", null); // ยังไม่ระบุ
+        customer.put("receivedDate", registeredDate); // LocalDate -> JsonUtil จะ serialize เป็น "YYYY-MM-DD"
+        customer.put("registeredAt", LocalDateTime.now().toString()); // เวลา ณ ตอนบันทึก
+        customer.put("status", status);
+        customer.put("symptom", symptom);
+
+        // บล็อก "repair" ให้ว่างเริ่มต้น (สอดคล้องกับโครงเก่า)
+        Map<String, Object> repair = new LinkedHashMap<>();
+        repair.put("parts", new ArrayList<>());   // [] เริ่มต้น
+        repair.put("grandTotal", 0.0);
+        repair.put("notes", "");
+        repair.put("lastUpdated", LocalDateTime.now().toString());
+        customer.put("repair", repair);
+
+        // --- 4) บันทึกลงไฟล์ customers.json (append) ---
+        try {
+            JsonUtil.ensureJsonArrayFile(CUSTOMERS_JSON);
+            // อ่านรายการเดิมทั้งหมดเป็น List<Map>
+            List<Map> list = new ArrayList<>(JsonUtil.readList(CUSTOMERS_JSON, Map.class));
+            list.add(customer);
+            JsonUtil.writeList(CUSTOMERS_JSON, list);
+
+            // --- 5) แจ้งผู้ใช้สำเร็จ + โชว์รหัสลูกค้า ---
+            String code = (String) customer.get("customerCode");
+            showInfo("บันทึกสำเร็จ", "สร้างข้อมูลลูกค้าเรียบร้อย\nรหัสลูกค้า: " + code + "\n\nนำรหัสดังกล่าวไปใช้ค้นหา/ดูสถานะภายหลังได้");
+
+            // เคลียร์ฟอร์มเบา ๆ (คงวันที่/สถานะไว้ให้)
+            tfCustomerName.clear();
+            tfPhone.clear();
+            tfPlate.clear();
+            tfProvince.clear();
+            taSymptom.clear();
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            showError("บันทึกไม่สำเร็จ", ex);
+        }
     }
 
-    private static boolean isBlank(String s) { return s == null || s.trim().isEmpty(); }
-    private static String safe(String s) { return Objects.toString(s, ""); }
+    // ===== Helpers =====
 
-    private void showError(String header, String content) {
-        Alert alert = new Alert(AlertType.ERROR);
-        alert.setTitle("เกิดข้อผิดพลาด");
-        alert.setHeaderText(header);
-        alert.setContentText(content);
-        alert.showAndWait();
+    // ตรวจความครบถ้วน/รูปแบบง่าย ๆ
+    private String validateForm(String name, String phone, String plate, String province, LocalDate date, String status) {
+        List<String> problems = new ArrayList<>();
+        if (name.isEmpty()) problems.add("กรุณาระบุชื่อลูกค้า");
+        if (phone.isEmpty()) problems.add("กรุณาระบุเบอร์โทร");
+        if (plate.isEmpty()) problems.add("กรุณาระบุป้ายทะเบียน");
+        if (province.isEmpty()) problems.add("กรุณาระบุจังหวัดทะเบียน");
+        if (date == null) problems.add("กรุณาระบุวันที่ลงทะเบียน");
+        if (status == null || status.isEmpty()) problems.add("กรุณาเลือกสถานะ");
+
+        // ตัวอย่างกฎเพิ่ม: เบอร์โทรให้เป็นตัวเลข 8-12 หลัก (ปรับตามจริงได้)
+        if (!phone.isEmpty() && !phone.matches("\\d{8,12}")) {
+            problems.add("รูปแบบเบอร์โทรไม่ถูกต้อง (ควรเป็นตัวเลข 8-12 หลัก)");
+        }
+
+        return problems.isEmpty() ? null : String.join("\n", problems);
+    }
+
+    // แปลง null -> "" กัน NPE
+    private String safe(String s) { return s == null ? "" : s.trim(); }
+
+    // สร้างโค้ดลูกค้า A-Z0-9 ความยาว len (เช็คซ้ำเบื้องต้นกับไฟล์เดิม)
+    private String genCustomerCode(int len) {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            String code = randomAlnum(len);
+            if (!isCodeExists(code)) return code;
+        }
+        // ถ้ายังชน ให้แน่ใจด้วย timestamp suffix (โอกาสน้อยมาก)
+        return randomAlnum(len - 4) + Long.toString(System.currentTimeMillis(), 36).toUpperCase(Locale.ROOT).substring(0, 4);
+    }
+
+    private String randomAlnum(int len) {
+        char[] out = new char[len];
+        for (int i = 0; i < len; i++) {
+            out[i] = ALPHANUM[RNG.nextInt(ALPHANUM.length)];
+        }
+        return new String(out);
+    }
+
+    private boolean isCodeExists(String code) {
+        try {
+            JsonUtil.ensureJsonArrayFile(CUSTOMERS_JSON);
+            List<Map> list = JsonUtil.readList(CUSTOMERS_JSON, Map.class);
+            for (Map m : list) {
+                Object v = m.get("customerCode");
+                if (v != null && code.equalsIgnoreCase(String.valueOf(v))) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (Exception ex) {
+            // ถ้าอ่านไม่ได้ให้ถือว่าไม่มี (ไม่ fail registration)
+            return false;
+        }
+    }
+
+    private void showInfo(String title, String msg) {
+        Alert a = new Alert(Alert.AlertType.INFORMATION);
+        a.setTitle(title); a.setHeaderText(null); a.setContentText(msg);
+        a.showAndWait();
+    }
+
+    private void showWarn(String title, String msg) {
+        Alert a = new Alert(Alert.AlertType.WARNING);
+        a.setTitle(title); a.setHeaderText(null); a.setContentText(msg);
+        a.showAndWait();
+    }
+
+    private void showError(String title, Exception ex) {
+        Alert a = new Alert(Alert.AlertType.ERROR);
+        a.setTitle(title);
+        a.setHeaderText(title);
+        a.setContentText(String.valueOf(ex.getMessage()));
+        TextArea ta = new TextArea(getStack(ex));
+        ta.setEditable(false);
+        ta.setWrapText(false);
+        ta.setMaxWidth(Double.MAX_VALUE);
+        ta.setMaxHeight(Double.MAX_VALUE);
+        a.getDialogPane().setExpandableContent(ta);
+        a.showAndWait();
+    }
+
+    private String getStack(Throwable t) {
+        StringBuilder sb = new StringBuilder();
+        while (t != null) {
+            sb.append(t).append("\n");
+            for (StackTraceElement el : t.getStackTrace()) {
+                sb.append("  at ").append(el).append("\n");
+            }
+            t = t.getCause();
+            if (t != null) sb.append("Caused by: ");
+        }
+        return sb.toString();
     }
 }

@@ -1,58 +1,65 @@
 package com.example.big_bike_auto.controller;
 
-import com.example.big_bike_auto.RouterHub;
+import com.example.big_bike_auto.router.RouterHub;
 import javafx.fxml.FXML;
-import javafx.scene.layout.AnchorPane;
+import javafx.scene.Parent;
+import javafx.scene.layout.BorderPane;
 
 /**
- * HomeController (หน้าแม่) มี contentRoot สำหรับสลับหน้า child ผ่าน Router
- * - ใช้ RouterHub.getRouter() เพื่อเปลี่ยนหน้า
- * - รองรับเมนู onAction จาก Home.fxml
+ * HomeController:
+ * - เป็น Shell หลัก (Header + Menu + contentRoot)
+ * - ไม่สั่ง navigate ใน initialize แล้ว (ให้ HelloApplication เป็นคนสั่ง)
  */
 public class HomeController {
 
-    @FXML
-    private AnchorPane contentRoot; // พื้นที่วางเนื้อหา child
+    @FXML private BorderPane contentRoot;
 
-    /** เรียกโดย FXMLLoader หลังฉากโหลด */
     @FXML
-    private void initialize() {
-        // เปิดหน้าแรกตามต้องการ (เช่น dashboard) ถ้าอยาก
-        // RouterHub.getRouter().navigate("dashboard");
+    public void initialize() {
+        // ไม่ navigate ที่นี่ เพื่อไม่ให้ชน RouterHub ยังไม่ได้ set
     }
 
-    /** เปิดหน้าลงทะเบียน */
+    /** ให้ Router เรียกเพื่อวาง view ในตรงกลาง */
+    public void setContent(Parent view) {
+        contentRoot.setCenter(view);
+    }
+
+    // ===== Menu Actions =====
+
+    @FXML
+    private void goDashboard() {
+        navigateSafely("dashboard");
+    }
+
     @FXML
     private void goRegister() {
-        RouterHub.getRouter().navigate("register");
+        navigateSafely("register");
     }
 
-    /** เปิดหน้ารายละเอียดงานซ่อม (ตัวอย่างเดิม) */
     @FXML
     private void goRepairDetails() {
-        RouterHub.getRouter().navigate("repairDetails");
+        navigateSafely("repairDetails");
     }
 
-    /** เปิดหน้ารายการซ่อม */
-    @FXML
-    private void goRepairList() {
-        RouterHub.getRouter().navigate("repairList");
-    }
-
-    /** เปิดหน้าสต็อกอะไหล่ (เมนูใหม่) */
     @FXML
     private void goStock() {
-        RouterHub.getRouter().navigate("stock");
+        navigateSafely("inventory");
     }
 
-    /** เปิดหน้าใบสั่งซื้อ (เมนูใหม่) */
     @FXML
     private void goOrders() {
-        RouterHub.getRouter().navigate("orders");
+        navigateSafely("ordersPage");
     }
 
-    /** ให้ Router เข้าถึงพื้นที่ contentRoot ได้ */
-    public AnchorPane getContentRoot() {
-        return contentRoot;
+    @FXML
+    private void goLookup() {
+        navigateSafely("lookup");
+    }
+
+    private void navigateSafely(String page) {
+        if (!RouterHub.isReady()) {
+            throw new IllegalStateException("Router ยังไม่ได้ set! (ควรตั้งค่าใน HelloApplication ก่อน)");
+        }
+        RouterHub.getRouter().navigate(page);
     }
 }

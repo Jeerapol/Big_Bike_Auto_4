@@ -1,37 +1,61 @@
 package com.example.big_bike_auto;
 
 import com.example.big_bike_auto.controller.HomeController;
+import com.example.big_bike_auto.controller.LoginController;
+import com.example.big_bike_auto.router.Router;
+import com.example.big_bike_auto.router.RouterHub;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
 /**
- * แอปหลัก: โหลด Home.fxml -> ติดตั้ง Router -> เปิดหน้าแรก (dashboard)
+ * HelloApplication:
+ * 1) เปิด Login.fxml เป็นหน้าแรก
+ * 2) เมื่อ Login สำเร็จ -> โหลด Home.fxml, set RouterHub, แล้ว navigate ไปหน้า dashboard
  */
 public class HelloApplication extends Application {
 
     @Override
     public void start(Stage stage) throws Exception {
-        // 1) โหลด Home.fxml จาก resources (เส้นทางต้องตรงกับที่วางไฟล์)
-        FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/example/big_bike_auto/Home.fxml"));
-        Parent root = loader.load();
+        // 1) โหลดหน้า Login ก่อน
+        FXMLLoader loginLoader = new FXMLLoader(getClass().getResource("/com/example/big_bike_auto/login-view.fxml"));
+        Parent loginRoot = loginLoader.load();
+        LoginController loginController = loginLoader.getController();
 
-        // 2) ดึง HomeController แล้วสร้าง Router
-        HomeController home = loader.getController();
-        Router router = new Router(home);
-
-        // 3) ติดตั้ง Router เข้า Hub ให้ controller อื่น ๆ เรียกผ่าน RouterHub ได้
-        RouterHub.setRouter(router);
-
-        // 4) เปิดหน้าต่าง
-        stage.setTitle("Big_Bike Auto");
-        stage.setScene(new Scene(root));
+        Scene scene = new Scene(loginRoot);
+        stage.setScene(scene);
+        stage.setTitle("Big Bike Auto - Sign in");
         stage.show();
 
-        // 5) นำทางไปหน้าแรก (ต้องทำหลัง setRouter แล้วเท่านั้น)
-        RouterHub.getRouter().navigate("dashboard");
+        // 2) ติด callback เมื่อ login สำเร็จ
+        loginController.setOnLoginSuccess(user -> {
+            try {
+                // โหลด Home.fxml
+                FXMLLoader homeLoader = new FXMLLoader(getClass().getResource("/com/example/big_bike_auto/Home.fxml"));
+                Parent homeRoot = homeLoader.load();
+                HomeController homeController = homeLoader.getController();
+
+                // สร้าง Router + set ให้ RouterHub
+                Router router = new Router(homeController);
+                RouterHub.setRouter(router);
+
+                // เปลี่ยน Scene เป็น Home
+                stage.setTitle("Big Bike Auto");
+                stage.setScene(new Scene(homeRoot));
+                stage.show();
+
+                // นำทางหน้าแรกหลัง stage พร้อม
+                Platform.runLater(() -> router.navigate("dashboard"));
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                // ถ้าโหลด Home ล้มเหลว กลับไปหน้า Login พร้อมแจ้ง
+                loginController.showError("ไม่สามารถโหลดหน้า Home", ex);
+            }
+        });
     }
 
     public static void main(String[] args) {

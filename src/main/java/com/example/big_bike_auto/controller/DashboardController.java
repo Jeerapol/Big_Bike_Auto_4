@@ -1,154 +1,183 @@
 package com.example.big_bike_auto.controller;
 
-import com.example.big_bike_auto.RouterHub;
-import com.example.big_bike_auto.customer.Customer;
-import com.example.big_bike_auto.customer.CustomerRepository;
+import com.example.big_bike_auto.router.RouterHub;
+import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyStringWrapper;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
 
-import java.time.format.DateTimeFormatter;
-import java.util.Comparator;
-import java.util.List;
-import java.util.UUID;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
+import java.util.*;
+import java.util.stream.Collectors;
 
-/**
- * Dashboard ใหม่:
- * - ดึงข้อมูลทั้งหมดจาก customers.json
- * - นับ total/pending จากสถานะของ Customer
- * - กิจกรรมล่าสุด = ลูกค้าเรียงใหม่→เก่า
- */
 public class DashboardController {
 
     @FXML private Label lblTotalRepairs;
     @FXML private Label lblPendingRepairs;
     @FXML private Label lblInventoryItems;
 
-    @FXML private TableView<RecentItem> tblRecent;
-    @FXML private TableColumn<RecentItem, String> colType;
-    @FXML private TableColumn<RecentItem, String> colTitle;
-    @FXML private TableColumn<RecentItem, String> colWhen;
+    @FXML private TableView<Map<String, Object>> tblRecent;
+    @FXML private TableColumn<Map<String, Object>, String> colType;
+    @FXML private TableColumn<Map<String, Object>, String> colTitle;
+    @FXML private TableColumn<Map<String, Object>, String> colWhen;
 
-    private final DateTimeFormatter DATE = DateTimeFormatter.ISO_LOCAL_DATE;
-
-    /** แถวในตาราง (ถือ id ลูกค้าเพื่อเปิดรายละเอียด) */
-    public static class RecentItem {
-        private final String type;
-        private final String title;
-        private final String whenText;
-        private final String customerId;
-        public RecentItem(String type, String title, String whenText, String customerId) {
-            this.type = type; this.title = title; this.whenText = whenText; this.customerId = customerId;
-        }
-        public String getType() { return type; }
-        public String getTitle() { return title; }
-        public String getWhenText() { return whenText; }
-        public String getCustomerId() { return customerId; }
-    }
+    private static final Path CUSTOMERS = Paths.get("data", "customers.json");
+    private static final Path PARTS     = Paths.get("data", "parts.json");
+    private static final Set<String> PENDING = Set.of("RECEIVED", "IN_PROGRESS");
 
     @FXML
-    private void initialize() {
-        colType.setCellValueFactory(cd -> new ReadOnlyStringWrapper(nullToDash(cd.getValue().getType())));
-        colTitle.setCellValueFactory(cd -> new ReadOnlyStringWrapper(nullToDash(cd.getValue().getTitle())));
-        colWhen.setCellValueFactory(cd -> new ReadOnlyStringWrapper(nullToDash(cd.getValue().getWhenText())));
+    public void initialize() {
+        assert lblTotalRepairs   != null;
+        assert lblPendingRepairs != null;
+        assert lblInventoryItems != null;
+        assert tblRecent         != null;
+        assert colType           != null;
+        assert colTitle          != null;
+        assert colWhen           != null;
 
-        tblRecent.setPlaceholder(new Label("ยังไม่มีกิจกรรมล่าสุด"));
+        setupRecentTable();
+
+        refresh();
+        Platform.runLater(this::refresh);
+
+        // ✅ ดับเบิลคลิกแถวเพื่อเปิดหน้า RepairDetails พร้อมพารามิเตอร์ customerId
         tblRecent.setRowFactory(tv -> {
-            TableRow<RecentItem> row = new TableRow<>();
-            row.setOnMouseClicked(e -> {
-                if (row.isEmpty()) return;
-                if (e.getButton() == MouseButton.PRIMARY && e.getClickCount() == 2) {
-                    openDetailsIfPossible(row.getItem());
+            TableRow<Map<String, Object>> row = new TableRow<>();
+            row.setOnMouseClicked(evt -> {
+                if (!row.isEmpty()
+                        && evt.getButton() == MouseButton.PRIMARY
+                        && evt.getClickCount() == 2) {
+                    Map<String, Object> data = row.getItem();
+                    String customerId = asStr(data.get("id"));
+                    if (!customerId.isBlank()) {
+                        Map<String, Object> params = new HashMap<>();
+                        params.put("customerId", customerId);
+                        RouterHub.getRouter().navigate("repairDetails", params);
+                    } else {
+                        showWarn("ข้อมูลไม่ครบ", "ไม่พบรหัสงาน (id) ในรายการนี้");
+                    }
                 }
             });
             return row;
         });
+    }
 
-        refresh();
+    private void setupRecentTable() {
+        colType.setCellValueFactory(row -> new ReadOnlyStringWrapper("งานซ่อม"));
+        colTitle.setCellValueFactory(row -> {
+            Map<String, Object> m = row.getValue();
+            String name  = asStr(m.get("name"));
+            String plate = asStr(m.get("plate"));
+            String sym   = asStr(m.get("symptom"));
+            String text = String.format("%s | %s : %s",
+                    name.isBlank() ? "-" : name,
+                    plate.isBlank() ? "-" : plate,
+                    sym.isBlank() ? "-" : sym
+            );
+            return new ReadOnlyStringWrapper(text);
+        });
+        colWhen.setCellValueFactory(row -> new ReadOnlyStringWrapper(pickWhen(row.getValue())));
     }
 
     private void refresh() {
+        List<Map<String, Object>> customers = readJsonArrayAsMap(CUSTOMERS);
+        int totalRepairs = customers.size();
+        int pendingRepairs = (int) customers.stream()
+                .map(m -> asStr(m.get("status")).toUpperCase(Locale.ROOT))
+                .filter(PENDING::contains)
+                .count();
+        int inventoryItems = readJsonArrayAsMap(PARTS).size();
+
+        lblTotalRepairs.setText(String.valueOf(totalRepairs));
+        lblPendingRepairs.setText(String.valueOf(pendingRepairs));
+        lblInventoryItems.setText(String.valueOf(inventoryItems));
+
+        List<Map<String, Object>> recent = customers.stream()
+                .sorted(Comparator.comparing(this::extractInstantForSort,
+                        Comparator.nullsLast(Comparator.naturalOrder())).reversed())
+                .limit(50)
+                .collect(Collectors.toList());
+        tblRecent.getItems().setAll(recent);
+    }
+
+    // ------------------- JSON utils -------------------
+    private List<Map<String, Object>> readJsonArrayAsMap(Path file) {
         try {
-            List<Customer> all = new CustomerRepository().findAll();
+            ensureArrayFile(file);
+            String json = Files.readString(file, StandardCharsets.UTF_8).trim();
+            if (json.isEmpty()) return List.of();
+            com.google.gson.Gson gson = new com.google.gson.Gson();
+            java.lang.reflect.Type type = new com.google.gson.reflect.TypeToken<List<Map<String, Object>>>(){}.getType();
+            List<Map<String, Object>> list = gson.fromJson(json, type);
+            return list != null ? list : List.of();
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
 
-            // ตัวเลขสถิติ
-            int total = all.size();
-            long pending = all.stream().filter(c ->
-                    c.getStatus() == Customer.RepairStatus.RECEIVED ||
-                            c.getStatus() == Customer.RepairStatus.DIAGNOSING ||
-                            c.getStatus() == Customer.RepairStatus.WAIT_PARTS ||
-                            c.getStatus() == Customer.RepairStatus.REPAIRING ||
-                            c.getStatus() == Customer.RepairStatus.QA
-            ).count();
+    private void ensureArrayFile(Path file) throws java.io.IOException {
+        Path dir = file.getParent();
+        if (dir != null && !Files.exists(dir)) Files.createDirectories(dir);
+        if (!Files.exists(file)) Files.writeString(file, "[]", StandardCharsets.UTF_8, StandardOpenOption.CREATE);
+    }
 
-            lblTotalRepairs.setText(String.valueOf(total));
-            lblPendingRepairs.setText(String.valueOf(pending));
-            long itemsNeeded = all.stream()
-                    .filter(c -> c.getStatus() != Customer.RepairStatus.DONE)
-                    .filter(c -> c.getRepair() != null && c.getRepair().getParts() != null)
-                    .flatMap(c -> c.getRepair().getParts().stream())
-                    .mapToLong(p -> p.getQuantity() == null ? 0 : p.getQuantity())
-                    .sum();
+    private String asStr(Object o) { return o == null ? "" : String.valueOf(o).trim(); }
 
-            lblInventoryItems.setText(String.valueOf(itemsNeeded));
+    private String pickWhen(Map<String, Object> m) {
+        Object repairObj = m.get("repair");
+        if (repairObj instanceof Map) {
+            String s = asStr(((Map<?, ?>) repairObj).get("lastUpdated"));
+            if (!s.isBlank()) return prettyWhen(s);
+        }
+        String received = asStr(m.get("receivedDate"));
+        return received.isBlank() ? "-" : prettyWhen(received);
+    }
 
+    private String extractInstantForSort(Map<String, Object> m) {
+        Object repairObj = m.get("repair");
+        if (repairObj instanceof Map) {
+            String s = asStr(((Map<?, ?>) repairObj).get("lastUpdated"));
+            String k = isoKey(s);
+            if (k != null) return k;
+        }
+        return isoKey(asStr(m.get("receivedDate")));
+    }
 
-            // ระบุชนิด Customer ให้ lambda ชัดเจน
-            all.sort(Comparator.comparing(
-                    (Customer c) -> c.getRegisteredAt() != null ? c.getRegisteredAt()
-                            : (c.getReceivedDate() != null ? c.getReceivedDate().atStartOfDay() : null),
-                    Comparator.nullsLast(Comparator.naturalOrder())
-            ).reversed());
+    private String isoKey(String s) {
+        if (s == null || s.isBlank()) return null;
+        try {
+            if (s.length() == 10) { LocalDate.parse(s); return s + "T00:00:00"; }
+            else { OffsetDateTime.parse(s); return s; }
+        } catch (DateTimeParseException e1) {
+            try { java.time.LocalDateTime.parse(s); return s; }
+            catch (DateTimeParseException e2) { return null; }
+        }
+    }
 
-            ObservableList<RecentItem> data = FXCollections.observableArrayList();
-            int limit = Math.min(20, all.size());
-            for (int i = 0; i < limit; i++) {
-                Customer c = all.get(i);
-                String type = mapType(c.getStatus());
-                String title = safe(c.getName()) + " • " + safe(c.getPlate())
-                        + " (" + safe(c.getProvince()) + "/" + safe(c.getPhone()) + ")";
-                String when = c.getReceivedDate() != null ? DATE.format(c.getReceivedDate())
-                        : (c.getRegisteredAt() != null ? c.getRegisteredAt().toLocalDate().toString() : "-");
-                data.add(new RecentItem(type, title, when, c.getId()));
+    private String prettyWhen(String s) {
+        try {
+            if (s.length() == 10) {
+                LocalDate d = LocalDate.parse(s);
+                return String.format("%04d-%02d-%02d 00:00:00", d.getYear(), d.getMonthValue(), d.getDayOfMonth());
+            } else {
+                try {
+                    java.time.LocalDateTime ldt = OffsetDateTime.parse(s).toLocalDateTime();
+                    return ldt.toString().replace('T', ' ').split("\\.")[0];
+                } catch (DateTimeParseException e) {
+                    return java.time.LocalDateTime.parse(s).toString().replace('T', ' ').split("\\.")[0];
+                }
             }
-            tblRecent.setItems(data);
-
-        } catch (Exception e) {
-            lblTotalRepairs.setText("0");
-            lblPendingRepairs.setText("0");
-            lblInventoryItems.setText("-");
-            tblRecent.setItems(FXCollections.observableArrayList());
-            e.printStackTrace();
-        }
+        } catch (Exception ignore) { return s; }
     }
 
-
-    private void openDetailsIfPossible(RecentItem item) {
-        try {
-            if (item == null || item.getCustomerId() == null || item.getCustomerId().isBlank()) return;
-            UUID id = UUID.fromString(item.getCustomerId());
-            // สมมติ RouterHub รองรับเปิดด้วย customer id (ถ้ายังไม่รองรับ ให้ปรับ Router/Details ตามนี้)
-            RouterHub.openRepairDetails(id);
-        } catch (Exception ignore) {
-            // ถ้า Router ยังต้องการประเภท RepairJob จริง ๆ ให้เปลี่ยนไปเปิดหน้า CustomerDetails แทน
-        }
+    private void showWarn(String title, String msg) {
+        Alert a = new Alert(Alert.AlertType.WARNING, msg, ButtonType.OK);
+        a.setHeaderText(title);
+        a.showAndWait();
     }
-
-    private static String mapType(Customer.RepairStatus st) {
-        if (st == null) return "งานซ่อม";
-        return switch (st) {
-            case RECEIVED -> "รับงานแล้ว";
-            case DIAGNOSING -> "วินิจฉัย";
-            case WAIT_PARTS -> "รออะไหล่";
-            case REPAIRING -> "กำลังซ่อม";
-            case QA -> "ตรวจคุณภาพ";
-            case DONE -> "เสร็จสิ้น";
-        };
-    }
-
-    private static String safe(String s) { return (s == null || s.isBlank()) ? "-" : s; }
-    private static String nullToDash(String s) { return (s == null || s.isBlank()) ? "-" : s; }
 }

@@ -2,59 +2,70 @@
 
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.control.*?>
+<?import javafx.geometry.Insets?>
 
-<!-- หน้า Home: เมนูด้านบน + contentRoot สำหรับใส่หน้าอื่น -->
-<AnchorPane xmlns="http://javafx.com/javafx/21.0.1" xmlns:fx="http://javafx.com/fxml/1"
-            fx:controller="com.example.big_bike_auto.controller.HomeController" prefWidth="1200" prefHeight="800">
+<BorderPane xmlns="http://javafx.com/javafx/21.0.1" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.example.big_bike_auto.controller.HomeController"
+            prefWidth="1200" prefHeight="800">
 
-    <!-- แถบหัว: สูง 64, ชิดบนและซ้าย/ขวา -->
-    <AnchorPane prefHeight="64.0" style="-fx-background-color: #3381F2;"
-                AnchorPane.topAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
-        <children>
-            <Label text="Big Bike Auto"
-                   style="-fx-text-fill: white; -fx-font-size: 20; -fx-font-weight: bold;"
-                   layoutX="20" layoutY="20"/>
-        </children>
-    </AnchorPane>
+    <!-- Header + MenuBar (รวมอยู่ใน <top> เดียว) -->
+    <top>
+        <VBox>
+            <AnchorPane prefHeight="64.0" style="-fx-background-color: #3381F2;">
+                <children>
+                    <Label text="Big Bike Auto"
+                           style="-fx-text-fill: white; -fx-font-size: 20; -fx-font-weight: bold;"
+                           layoutX="20" layoutY="20"/>
+                </children>
+            </AnchorPane>
 
-    <!-- เมนู: วางใต้ header (บน=64), ชิดซ้าย/ขวา -->
-    <MenuBar AnchorPane.topAnchor="64.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
-        <menus>
-            <Menu text="ลงทะเบียน">
-                <items>
-                    <MenuItem fx:id="menuRegister" text="เปิดหน้าลงทะเบียน" onAction="#goRegister"/>
-                </items>
-            </Menu>
+            <MenuBar>
+                <menus>
+                    <Menu text="Dashboard">
+                        <items>
+                            <MenuItem text="เปิดหน้า Dashboard" onAction="#goDashboard"/>
+                        </items>
+                    </Menu>
 
-            <Menu text="รายละเอียดงานซ่อม">
-                <items>
-                    <MenuItem fx:id="menuRepairDetails" text="เปิดหน้ารายละเอียดงานซ่อม" onAction="#goRepairDetails"/>
-                </items>
-            </Menu>
+                    <Menu text="ลงทะเบียน">
+                        <items>
+                            <MenuItem text="เปิดหน้าลงทะเบียน" onAction="#goRegister"/>
+                        </items>
+                    </Menu>
 
-            <Menu text="รายการซ่อม">
-                <items>
-                    <MenuItem fx:id="menuRepairList" text="เปิดหน้ารายการซ่อม" onAction="#goRepairList"/>
-                </items>
-            </Menu>
+                    <Menu text="รายละเอียดงานซ่อม">
+                        <items>
+                            <MenuItem text="เปิดหน้ารายละเอียดงานซ่อม" onAction="#goRepairDetails"/>
+                        </items>
+                    </Menu>
 
-            <!-- แทนที่เมนู 'สินค้าคงคลัง' เดิม ด้วยเมนูอะไหล่/สั่งซื้อ -->
-            <Menu text="อะไหล่/สั่งซื้อ">
-                <items>
-                    <MenuItem fx:id="menuStock"  text="เปิดหน้าสต็อกอะไหล่"   onAction="#goStock"/>
-                    <MenuItem fx:id="menuOrders" text="เปิดหน้าใบสั่งซื้อ"    onAction="#goOrders"/>
-                </items>
-            </Menu>
-        </menus>
-    </MenuBar>
+                    <Menu text="อะไหล่/สั่งซื้อ">
+                        <items>
+                            <MenuItem text="เปิดหน้าสต็อกอะไหล่" onAction="#goStock"/>
+                            <MenuItem text="เปิดหน้าใบสั่งซื้อ" onAction="#goOrders"/>
+                        </items>
+                    </Menu>
 
-    <!-- พื้นที่เนื้อหา: วางใต้เมนู (บน=89 = 64+25), ชิดซ้าย/ขวา/ล่าง -->
-    <AnchorPane fx:id="contentRoot"
-                AnchorPane.topAnchor="89.0" AnchorPane.leftAnchor="0.0"
-                AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0">
-        <children>
-            <Label text="กำลังโหลด..." layoutX="20" layoutY="20"/>
-        </children>
-    </AnchorPane>
+                    <Menu text="ค้นหางาน">
+                        <items>
+                            <MenuItem text="ค้นหาด้วย Customer Code" onAction="#goLookup"/>
+                        </items>
+                    </Menu>
 
-</AnchorPane>
+                </menus>
+            </MenuBar>
+        </VBox>
+    </top>
+
+    <!-- Content Root -->
+    <center>
+        <BorderPane fx:id="contentRoot" prefWidth="1200" prefHeight="736">
+            <padding>
+                <Insets top="16" right="16" bottom="16" left="16"/>
+            </padding>
+            <children>
+                <Label text="กำลังโหลด..." layoutX="20" layoutY="20"/>
+            </children>
+        </BorderPane>
+    </center>
+</BorderPane>

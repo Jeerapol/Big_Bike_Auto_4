@@ -3,31 +3,27 @@ module com.example.big_bike_auto {
     requires javafx.fxml;
     requires com.google.gson;
 
-    // ไลบรารี UI อื่น ๆ
+    // UI libraries (ถ้ามีใช้งานจริง)
     requires org.controlsfx.controls;
     requires com.dlsc.formsfx;
     requires org.kordamp.bootstrapfx.core;
 
-    // ✅ เพิ่ม Jackson
+    // Jackson (ตามที่พบในโค้ด)
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.datatype.jsr310;
 
-    // Export UI และ root package (ถ้าต้องการให้ module อื่น import public API)
-    exports com.example.big_bike_auto.ui;
+    // Exports (ให้ module อื่น/JavaFX มองเห็น public types)
     exports com.example.big_bike_auto;
+    exports com.example.big_bike_auto.controller;
+    exports com.example.big_bike_auto.model;
+    exports com.example.big_bike_auto.repository;
+    exports com.example.big_bike_auto.common;
 
-    // เปิดให้ FXMLLoader ใช้ reflection กับ controller
+    // Opens (ให้ reflection ใช้กับ FXML/Serializer)
     opens com.example.big_bike_auto.controller to javafx.fxml, javafx.base;
     opens com.example.big_bike_auto to javafx.fxml;
-
-    // ✅ เปิด package ที่ Gson ต้อง reflect
-    opens com.example.big_bike_auto.parts to com.google.gson;
-    opens com.example.big_bike_auto.po    to com.google.gson;   // << เพิ่มบรรทัดนี้
-
-    // ✅ เปิดให้ Jackson ใช้ reflection
-    opens com.example.big_bike_auto.customer to com.fasterxml.jackson.databind;
-    opens com.example.big_bike_auto.common   to com.fasterxml.jackson.databind;
-
+    opens com.example.big_bike_auto.model to com.google.gson, com.fasterxml.jackson.databind;
+    opens com.example.big_bike_auto.common to com.fasterxml.jackson.databind, com.google.gson;
 }

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<AnchorPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.example.big_bike_auto.controller.LoginController"
+            prefHeight="400" prefWidth="600">
+
+    <children>
+        <VBox spacing="20" alignment="CENTER" prefHeight="400" prefWidth="600">
+            <children>
+                <Label text="Sign in" style="-fx-font-size: 24; -fx-font-weight: bold; -fx-text-fill: #3381F2;"/>
+                <TextField fx:id="usernameField" promptText="Username" prefWidth="200"/>
+                <PasswordField fx:id="passwordField" promptText="Password" prefWidth="200"/>
+                <Button text="Sign in" style="-fx-background-color: #3381F2; -fx-text-fill: white;"
+                        onAction="#onLogin" prefWidth="200"/>
+            </children>
+        </VBox>
+    </children>
+</AnchorPane>

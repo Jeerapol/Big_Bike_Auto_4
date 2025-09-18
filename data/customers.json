@@ -1,23 +1,76 @@
-[ {
-  "id" : "ddacdd2c-00bc-4da4-94cb-d788e245b0e4",
-  "name" : "จีรพล เย่า",
-  "phone" : "0861514525",
-  "plate" : "กข 123",
-  "province" : "กรุงเทพ",
-  "bikeModel" : null,
-  "receivedDate" : "2025-09-18",
-  "registeredAt" : "2025-09-18T18:33:49.7202803",
-  "status" : "RECEIVED",
-  "symptom" : "ไฟเลี้ยวขวาไม่ติด",
-  "repair" : {
-    "parts" : [ {
-      "partName" : "ไฟเลี้ยว",
-      "quantity" : 1,
-      "unit" : "ชุด",
-      "unitPrice" : 1000.0
-    } ],
-    "grandTotal" : 1000.0,
-    "notes" : "เปลี่ยนไฟเลี้ยว",
-    "lastUpdated" : "2025-09-18T18:34:23.0928113"
+[
+  {
+    "id": "ddacdd2c-00bc-4da4-94cb-d788e245b0e4",
+    "name": "จีรพล เย่า",
+    "phone": "0861514525",
+    "plate": "กข 123",
+    "province": "กรุงเทพ",
+    "receivedDate": "2025-09-18",
+    "registeredAt": "2025-09-18T18:33:49.7202803",
+    "status": "RECEIVED",
+    "symptom": "ไฟเลี้ยวขวาไม่ติด",
+    "repair": {
+      "parts": [
+        {
+          "partName": "ไฟเลี้ยว",
+          "quantity": 1.0,
+          "unit": "ชุด",
+          "unitPrice": 1000.0
+        }
+      ],
+      "grandTotal": 1000.0,
+      "notes": "เปลี่ยนไฟเลี้ยว",
+      "lastUpdated": "2025-09-18T18:34:23.0928113"
+    }
+  },
+  {
+    "id": "2eb42fab-361b-4265-bc58-458c5d0cbe93",
+    "customerCode": "CLCXWSI89B",
+    "name": "จีรพล เย่า",
+    "phone": "0123456789",
+    "plate": "กข 1234",
+    "province": "กรุงเทพ",
+    "receivedDate": "2025-09-18",
+    "registeredAt": "2025-09-18T22:26:10.660856200",
+    "status": "RECEIVED",
+    "symptom": "ไฟเลี้ยว",
+    "repair": {
+      "parts": [
+        {
+          "partName": "ไฟเลี้ยว",
+          "quantity": 1.0,
+          "unit": "ชุด",
+          "unitPrice": 1000.0
+        }
+      ],
+      "grandTotal": 1000.0,
+      "notes": "ไฟเลี้ยว",
+      "lastUpdated": "2025-09-18T22:54:15.666300800"
+    }
+  },
+  {
+    "id": "95ca981b-dfa6-471e-8e36-6c9a7a9157ff",
+    "customerCode": "5RZXR82IDL",
+    "name": "จีรพล test",
+    "phone": "0861562548",
+    "plate": "ขข 1234",
+    "province": "กรุงเทพ",
+    "receivedDate": "2025-09-18",
+    "registeredAt": "2025-09-18T23:08:36.263996700",
+    "status": "IN_PROGRESS",
+    "symptom": "ไฟบ่ติด",
+    "repair": {
+      "parts": [
+        {
+          "partName": "ไฟ",
+          "quantity": 1.0,
+          "unit": "ชุด",
+          "unitPrice": 1000.0
+        }
+      ],
+      "grandTotal": 1000.0,
+      "notes": "กำลังเปลี่ยนไฟ",
+      "lastUpdated": "2025-09-18T23:09:29.843480400"
+    }
   }
-} ]
+]
