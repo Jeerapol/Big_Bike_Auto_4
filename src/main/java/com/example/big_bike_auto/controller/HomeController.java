@@ -1,6 +1,5 @@
 package com.example.big_bike_auto.controller;
 
-import com.example.big_bike_auto.Router;
 import com.example.big_bike_auto.RouterHub;
 import javafx.fxml.FXML;
 import javafx.scene.layout.AnchorPane;
@@ -15,16 +14,11 @@ public class HomeController {
     @FXML
     private AnchorPane contentRoot; // พื้นที่วางเนื้อหา child
 
-    private Router router;
-
+    /** เรียกโดย FXMLLoader หลังฉากโหลด */
     @FXML
     private void initialize() {
-        // สร้าง Router ผูกกับ Home นี้ แล้วเผยแพร่ผ่าน RouterHub
-        router = new Router(this);
-        RouterHub.setRouter(router);
-
-        // เปิดหน้าแรก (dashboard)
-        router.navigate("dashboard");
+        // เปิดหน้าแรกตามต้องการ (เช่น dashboard) ถ้าอยาก
+        // RouterHub.getRouter().navigate("dashboard");
     }
 
     /** เปิดหน้าลงทะเบียน */
@@ -33,23 +27,28 @@ public class HomeController {
         RouterHub.getRouter().navigate("register");
     }
 
-    /** เปิดหน้ารายละเอียดงานซ่อม */
+    /** เปิดหน้ารายละเอียดงานซ่อม (ตัวอย่างเดิม) */
     @FXML
     private void goRepairDetails() {
         RouterHub.getRouter().navigate("repairDetails");
-    }
-
-    /** เปิดหน้าสินค้าคงคลัง */
-    @FXML
-    private void goInventory() {
-        // ตอนนี้ยังไม่มี inventory.fxml จริง → พาไป dashboard ชั่วคราว
-        RouterHub.getRouter().navigate("dashboard");
     }
 
     /** เปิดหน้ารายการซ่อม */
     @FXML
     private void goRepairList() {
         RouterHub.getRouter().navigate("repairList");
+    }
+
+    /** เปิดหน้าสต็อกอะไหล่ (เมนูใหม่) */
+    @FXML
+    private void goStock() {
+        RouterHub.getRouter().navigate("stock");
+    }
+
+    /** เปิดหน้าใบสั่งซื้อ (เมนูใหม่) */
+    @FXML
+    private void goOrders() {
+        RouterHub.getRouter().navigate("orders");
     }
 
     /** ให้ Router เข้าถึงพื้นที่ contentRoot ได้ */

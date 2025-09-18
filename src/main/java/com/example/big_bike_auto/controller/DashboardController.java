@@ -86,7 +86,15 @@ public class DashboardController {
 
             lblTotalRepairs.setText(String.valueOf(total));
             lblPendingRepairs.setText(String.valueOf(pending));
-            lblInventoryItems.setText("-");
+            long itemsNeeded = all.stream()
+                    .filter(c -> c.getStatus() != Customer.RepairStatus.DONE)
+                    .filter(c -> c.getRepair() != null && c.getRepair().getParts() != null)
+                    .flatMap(c -> c.getRepair().getParts().stream())
+                    .mapToLong(p -> p.getQuantity() == null ? 0 : p.getQuantity())
+                    .sum();
+
+            lblInventoryItems.setText(String.valueOf(itemsNeeded));
+
 
             // ระบุชนิด Customer ให้ lambda ชัดเจน
             all.sort(Comparator.comparing(

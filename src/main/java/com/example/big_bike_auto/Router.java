@@ -32,7 +32,9 @@ public class Router {
         routes.put("dashboard",     "/com/example/big_bike_auto/ui/Dashboard.fxml");
         routes.put("register",      "/com/example/big_bike_auto/ui/register.fxml");
         routes.put("repairDetails", "/com/example/big_bike_auto/ui/RepairDetails.fxml");
-        routes.put("inventory",     "/com/example/big_bike_auto/ui/inventory.fxml");
+//        routes.put("inventory",     "/com/example/big_bike_auto/ui/inventory.fxml");
+        routes.put("stock",   "/com/example/big_bike_auto/ui/StockPage.fxml");
+        routes.put("orders",  "/com/example/big_bike_auto/ui/OrdersPage.fxml");
         // TODO: เปลี่ยนปลายทางเมื่อมี RepairList จริง
         routes.put("repairList",    "/com/example/big_bike_auto/ui/RepairList.fxml");
     }

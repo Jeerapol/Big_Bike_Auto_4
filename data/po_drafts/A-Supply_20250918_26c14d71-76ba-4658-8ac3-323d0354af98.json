@@ -1,0 +1,15 @@
+{
+  "supplier": "A-Supply",
+  "createdDate": "2025-09-18",
+  "items": [
+    {
+      "sku": "AIR-FLT",
+      "name": "กรองอากาศ",
+      "unit": "ชิ้น",
+      "quantity": 22,
+      "unitCost": "220",
+      "subTotal": "4840.00"
+    }
+  ],
+  "grandTotal": "4840.00"
+}

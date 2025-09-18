@@ -1,0 +1,16 @@
+[
+  {
+    "orderId": "158ee8f1-f521-3449-8408-734a9a50fbc6",
+    "supplier": "A-Supply",
+    "createdDate": "2025-09-18",
+    "status": "DRAFT",
+    "lines": [
+      {
+        "sku": "AIR-FLT",
+        "name": "กรองอากาศ",
+        "qty": 22,
+        "unitCost": "220"
+      }
+    ]
+  }
+]

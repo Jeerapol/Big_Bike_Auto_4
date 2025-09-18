@@ -36,8 +36,11 @@
                 <Button fx:id="btnEditRepair" text="แก้ไขรายการซ่อม" onAction="#onEditRepair"/>
                 <!-- ปุ่มนี้ให้ STAFF และ ADMIN -->
                 <Button fx:id="btnEditRegister" text="แก้ไขข้อมูลลงทะเบียน" onAction="#onEditRegister"/>
+                <Button fx:id="btnOpenStockForJob" text="อะไหล่สำหรับงานนี้" onAction="#onOpenStockForJob"/>
+
             </children>
             <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
         </HBox>
+
     </bottom>
 </BorderPane>

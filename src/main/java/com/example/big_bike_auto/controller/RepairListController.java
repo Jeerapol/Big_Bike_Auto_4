@@ -41,6 +41,8 @@ public class RepairListController {
     private final CustomerRepository repo = new CustomerRepository();
     private final ObservableList<JobRow> data = FXCollections.observableArrayList();
     private final DateTimeFormatter DATE = DateTimeFormatter.ISO_LOCAL_DATE;
+    private Button btnOpenStockForJob;
+
 
     @FXML
     private void initialize() {
@@ -234,5 +236,16 @@ public class RepairListController {
         public static void setEditingJobId(UUID id) { editingJobId = id; }
         public static UUID getEditingJobId() { return editingJobId; }
         public static void clear() { editingJobId = null; }
+    }
+
+    @FXML
+    private void onOpenStockForJob() {
+        JobRow sel = tvJobs.getSelectionModel().getSelectedItem();
+        if (sel == null || sel.uuid == null) {
+            info("ยังไม่ได้เลือกรายการ", "กรุณาเลือกแถวก่อน");
+            return;
+        }
+        com.example.big_bike_auto.controller.StockPageController.StockPageContext.setJobId(sel.uuid);
+        RouterHub.getRouter().navigate("stock");
     }
 }
