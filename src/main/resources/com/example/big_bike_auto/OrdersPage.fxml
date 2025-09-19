@@ -1,27 +1,107 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
-<VBox xmlns="http://javafx.com/javafx/21.0.6"
-      xmlns:fx="http://javafx.com/fxml/1"
-      fx:controller="com.example.big_bike_auto.controller.OrdersPageController"
-      spacing="8" prefWidth="800" prefHeight="600">
-    <children>
-        <ToolBar>
-            <items>
-                <Button fx:id="btnPlace" text="สั่งซื้อ" onAction="#onPlace"/>
-                <Button fx:id="btnReceive" text="รับเข้า" onAction="#onReceive"/>
-                <Button fx:id="btnCancel" text="ยกเลิก" onAction="#onCancel"/>
-                <Button text="รีเฟรช" onAction="#onRefresh"/>
-            </items>
-        </ToolBar>
-        <TableView fx:id="tvOrders" prefHeight="560">
-            <columns>
-                <TableColumn fx:id="colId" text="เลขที่ใบสั่งซื้อ" prefWidth="160"/>
-                <TableColumn fx:id="colSupplier" text="ผู้ขาย" prefWidth="180"/>
-                <TableColumn fx:id="colOrderDate" text="วันที่สั่งซื้อ" prefWidth="140"/>
-                <TableColumn fx:id="colItemCount" text="จำนวนรายการ" prefWidth="120"/>
-                <TableColumn fx:id="colStatus" text="สถานะ" prefWidth="100"/>
-            </columns>
-        </TableView>
-    </children>
-</VBox>
+
+<!--
+  หน้านี้ถูกปรับข้อความ UI เป็นภาษาไทยทั้งหมด
+  - ปุ่มด้านบน: สร้าง PO / ส่งคำสั่งซื้อ / บันทึกรับสินค้า / ส่งออก CSV
+  - แท็บ: รายการค้างสั่ง, ใบสั่งซื้อ
+  - หัวตาราง & placeholder ใน ComboBox/DatePicker เป็นไทย
+-->
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.example.big_bike_auto.controller.OrdersPageController">
+
+    <top>
+        <HBox spacing="8">
+            <children>
+                <!-- ชื่อหน้า -->
+                <Label text="ใบสั่งซื้อ" style="-fx-font-size: 18; -fx-font-weight: bold;"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <!-- แถบคำสั่งหลัก -->
+                <Button text="สร้าง PO ตามซัพพลายเออร์" onAction="#onCreatePOs"/>
+                <Button text="ส่งคำสั่งซื้อที่เลือก" onAction="#onSubmitPO"/>
+                <Button text="บันทึกรับสินค้า" onAction="#onMarkReceived"/>
+                <Button text="ส่งออก CSV" onAction="#onExportCsv"/>
+            </children>
+            <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+        </HBox>
+    </top>
+
+    <center>
+        <TabPane fx:id="tabPane">
+            <tabs>
+                <!-- แท็บ Backlog -->
+                <Tab text="รายการค้างสั่ง" closable="false">
+                    <BorderPane>
+                        <top>
+                            <HBox spacing="8">
+                                <children>
+                                    <TextField fx:id="txtSearchDraft" promptText="ค้นหาในรายการค้างสั่ง"/>
+                                    <ComboBox fx:id="cbSupplierDraft" promptText="ซัพพลายเออร์"/>
+                                    <Region HBox.hgrow="ALWAYS"/>
+                                    <Button text="ล้างรายการค้างสั่ง" onAction="#onClearDraft"/>
+                                </children>
+                                <padding><Insets top="8" right="10" bottom="8" left="10"/></padding>
+                            </HBox>
+                        </top>
+                        <center>
+                            <TableView fx:id="tvDraft">
+                                <columns>
+                                    <TableColumn fx:id="colDSupplier" text="ซัพพลายเออร์" prefWidth="130"/>
+                                    <TableColumn fx:id="colDCode" text="รหัส" prefWidth="120"/>
+                                    <TableColumn fx:id="colDName" text="ชื่อสินค้า" prefWidth="240"/>
+                                    <TableColumn fx:id="colDNeeded" text="จำนวนที่ต้องการ" prefWidth="110"/>
+                                    <TableColumn fx:id="colDOrderQty" text="จำนวนที่จะสั่ง" prefWidth="110"/>
+                                </columns>
+                            </TableView>
+                        </center>
+                    </BorderPane>
+                </Tab>
+
+                <!-- แท็บ Purchase Orders -->
+                <Tab text="ใบสั่งซื้อ" closable="false">
+                    <BorderPane>
+                        <top>
+                            <HBox spacing="8">
+                                <children>
+                                    <ComboBox fx:id="cbStatus" promptText="สถานะ"/>
+                                    <ComboBox fx:id="cbSupplierPo" promptText="ซัพพลายเออร์"/>
+                                    <DatePicker fx:id="dpFrom" promptText="ตั้งแต่"/>
+                                    <DatePicker fx:id="dpTo" promptText="ถึง"/>
+                                    <Region HBox.hgrow="ALWAYS"/>
+                                    <Button text="โหลดใหม่" onAction="#onReloadPOs"/>
+                                </children>
+                                <padding><Insets top="8" right="10" bottom="8" left="10"/></padding>
+                            </HBox>
+                        </top>
+                        <center>
+                            <TableView fx:id="tvPOs">
+                                <columns>
+                                    <TableColumn fx:id="colPoNo" text="เลขที่ PO" prefWidth="120"/>
+                                    <TableColumn fx:id="colPoSupplier" text="ซัพพลายเออร์" prefWidth="130"/>
+                                    <TableColumn fx:id="colPoStatus" text="สถานะ" prefWidth="100"/>
+                                    <TableColumn fx:id="colPoCreated" text="วันที่สร้าง" prefWidth="130"/>
+                                    <TableColumn fx:id="colPoItems" text="จำนวนรายการ" prefWidth="100"/>
+                                    <TableColumn fx:id="colPoQty" text="จำนวนรวม" prefWidth="100"/>
+                                    <TableColumn fx:id="colPoCost" text="มูลค่ารวม" prefWidth="110"/>
+                                </columns>
+                            </TableView>
+                        </center>
+                    </BorderPane>
+                </Tab>
+            </tabs>
+        </TabPane>
+    </center>
+
+    <bottom>
+        <HBox spacing="8" alignment="CENTER_RIGHT">
+            <children>
+                <ProgressIndicator fx:id="progress" visible="false"/>
+                <Label fx:id="lblStatus" text=""/>
+            </children>
+            <padding><Insets top="8" right="10" bottom="10" left="10"/></padding>
+        </HBox>
+    </bottom>
+</BorderPane>

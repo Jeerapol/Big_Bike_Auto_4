@@ -3,6 +3,7 @@ module com.example.big_bike_auto {
     requires javafx.fxml;
     requires com.google.gson;
 
+
     // UI libraries (ถ้ามีใช้งานจริง)
     requires org.controlsfx.controls;
     requires com.dlsc.formsfx;

@@ -51,6 +51,6 @@ public class RepairListController {
     @FXML
     private void onOpenStockForJob() {
         System.out.println("เปิดอะไหล่สำหรับงานนี้");
-        // TODO: เปิด Inventory.fxml และเลือกเฉพาะ job ปัจจุบัน
+        // TODO: เปิด InventoryPage.fxml และเลือกเฉพาะ job ปัจจุบัน
     }
 }

@@ -1,271 +1,371 @@
 package com.example.big_bike_auto.controller;
 
-import com.example.big_bike_auto.model.Part;
 import com.example.big_bike_auto.model.PurchaseOrder;
-import com.example.big_bike_auto.repository.PurchaseOrderRepository;
-import javafx.beans.property.ReadOnlyIntegerWrapper;
+import com.example.big_bike_auto.model.viewmodel.OrderRow;
+import com.example.big_bike_auto.model.viewmodel.InventoryRow;
+import com.example.big_bike_auto.router.ReceivesParams;
+import com.example.big_bike_auto.service.OrderService;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
-import javafx.scene.layout.GridPane;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
- * OrdersPageController:
- * - แสดงรายการ PO
- * - ปุ่มรีเฟรช / สร้างใบสั่งซื้อ / รับเข้า / ยกเลิก
- *
- * หมายเหตุสำคัญ:
- * - ใช้ Callback ไม่ใช้ PropertyValueFactory เพื่อลดปัญหา reflection + module
- * - ป้องกันไฟล์ JSON หายโดย ensurePoFileExists()
+ * OrdersPageController
+ * - แท็บ Backlog: แสดง draft lines + ให้แก้ orderQty ได้
+ * - แท็บ POs: แสดงรายการ PO พร้อมกรอง/รีโหลด/เปลี่ยนสถานะ
+ * - ปรับให้ไม่แก้ ObservableList จาก background thread
+ * - เปิด selection แบบ MULTIPLE (กรณีต้องใช้ต่อ)
  */
-public class OrdersPageController {
+public class OrdersPageController implements ReceivesParams {
 
-    // ------- FXML components (ต้องตรงกับ OrdersPage.fxml) -------
-    @FXML private TableView<PurchaseOrder> tvOrders;
-    @FXML private TableColumn<PurchaseOrder, String> colId;
-    @FXML private TableColumn<PurchaseOrder, String> colSupplier;
-    @FXML private TableColumn<PurchaseOrder, String> colOrderDate;
-    @FXML private TableColumn<PurchaseOrder, Integer> colItemCount; // แก้เป็น Integer ให้ตรงกับ wrapper
-    @FXML private TableColumn<PurchaseOrder, String> colStatus;
+    // Backlog tab
+    @FXML private TextField txtSearchDraft;
+    @FXML private ComboBox<String> cbSupplierDraft;
+    @FXML private TableView<OrderRow> tvDraft;
+    @FXML private TableColumn<OrderRow, String> colDSupplier;
+    @FXML private TableColumn<OrderRow, String> colDCode;
+    @FXML private TableColumn<OrderRow, String> colDName;
+    @FXML private TableColumn<OrderRow, Number> colDNeeded;
+    @FXML private TableColumn<OrderRow, Number> colDOrderQty;
 
-    @FXML private Button btnPlace;
-    @FXML private Button btnReceive;
-    @FXML private Button btnCancel;
+    // POs tab
+    @FXML private ComboBox<String> cbStatus;
+    @FXML private ComboBox<String> cbSupplierPo;
+    @FXML private DatePicker dpFrom;
+    @FXML private DatePicker dpTo;
+    @FXML private TableView<PurchaseOrder> tvPOs;
+    @FXML private TableColumn<PurchaseOrder, String> colPoNo;
+    @FXML private TableColumn<PurchaseOrder, String> colPoSupplier;
+    @FXML private TableColumn<PurchaseOrder, String> colPoStatus;
+    @FXML private TableColumn<PurchaseOrder, String> colPoCreated;
+    @FXML private TableColumn<PurchaseOrder, String> colPoItems;
+    @FXML private TableColumn<PurchaseOrder, String> colPoQty;
+    @FXML private TableColumn<PurchaseOrder, String> colPoCost;
 
-    // ------- Repository / State -------
-    private final PurchaseOrderRepository repo = new PurchaseOrderRepository();
-    private final ObservableList<PurchaseOrder> orders = FXCollections.observableArrayList();
+    @FXML private Label lblStatus;
+    @FXML private ProgressIndicator progress;
 
-    // ไฟล์ JSON ที่ repo ใช้
-    private static final Path PO_JSON = Path.of("data", "purchase_orders.json");
+    // Data
+    private final ObservableList<OrderRow> draftMaster = FXCollections.observableArrayList();
+    private final ObservableList<OrderRow> draftFiltered = FXCollections.observableArrayList();
+    private final ObservableList<PurchaseOrder> poList = FXCollections.observableArrayList();
+
+    private final OrderService orderService = new OrderService();
 
     @FXML
-    public void initialize() {
-        // Map คอลัมน์แบบ callback (หลบ reflection)
-        colId.setCellValueFactory(row -> new ReadOnlyStringWrapper(ns(row.getValue().getId())));
-        colSupplier.setCellValueFactory(row -> new ReadOnlyStringWrapper(ns(row.getValue().getSupplier())));
-        colOrderDate.setCellValueFactory(row -> new ReadOnlyStringWrapper(
-                row.getValue().getOrderDate() != null ? row.getValue().getOrderDate().toString() : ""
+    private void initialize() {
+        // Draft columns
+        colDSupplier.setCellValueFactory(c -> c.getValue().supplierProperty());
+        colDCode.setCellValueFactory(c -> c.getValue().partCodeProperty());
+        colDName.setCellValueFactory(c -> c.getValue().nameProperty());
+        colDNeeded.setCellValueFactory(c -> c.getValue().neededProperty());
+
+        // ทำให้ OrderQty เป็น editable integer cell
+        tvDraft.setEditable(true);
+        colDOrderQty.setCellValueFactory(c -> c.getValue().orderQtyProperty());
+        colDOrderQty.setCellFactory(tc -> new IntegerEditingCell());
+        colDOrderQty.setOnEditCommit(ev -> {
+            OrderRow r = ev.getRowValue();
+            int val = Math.max(0, ev.getNewValue().intValue());
+            r.setOrderQty(val);
+        });
+
+        tvDraft.setItems(draftFiltered);
+
+        // ✅ ให้เลือกได้หลายแถว (รองรับการลบเป็นชุดในอนาคต ฯลฯ)
+        tvDraft.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+
+        txtSearchDraft.textProperty().addListener((o, ov, nv) -> applyDraftFilter());
+        cbSupplierDraft.valueProperty().addListener((o, ov, nv) -> applyDraftFilter());
+
+        // PO columns
+        colPoNo.setCellValueFactory(po -> new ReadOnlyStringWrapper(po.getValue().getId()));
+        colPoSupplier.setCellValueFactory(po -> new ReadOnlyStringWrapper(po.getValue().getSupplier()));
+        colPoStatus.setCellValueFactory(po -> {
+            String status = po.getValue().isReceived() ? "RECEIVED" : "OPEN";
+            return new ReadOnlyStringWrapper(status);
+        });
+        colPoCreated.setCellValueFactory(po -> new ReadOnlyStringWrapper(
+                po.getValue().getOrderDate() == null ? "" : po.getValue().getOrderDate().toString()
         ));
-        colItemCount.setCellValueFactory(row ->
-                new ReadOnlyIntegerWrapper(row.getValue().getItems() != null ? row.getValue().getItems().size() : 0)
-                        .asObject()
-        );
-        colStatus.setCellValueFactory(row -> new ReadOnlyStringWrapper(
-                row.getValue().isReceived() ? "ปิดแล้ว" : "เปิด"
+        colPoItems.setCellValueFactory(po -> new ReadOnlyStringWrapper(
+                String.valueOf(po.getValue().getItems() == null ? 0 : po.getValue().getItems().size())
+        ));
+        // รวมจำนวนชิ้น
+        colPoQty.setCellValueFactory(po -> new ReadOnlyStringWrapper(
+                String.valueOf(
+                        po.getValue().getItems() == null ? 0 :
+                                po.getValue().getItems().stream().mapToInt(it -> it.getQuantity()).sum()
+                )
+        ));
+        // รวมต้นทุนทั้งหมด
+        colPoCost.setCellValueFactory(po -> new ReadOnlyStringWrapper(
+                String.format("%.2f", po.getValue().getTotalAmount())
         ));
 
-        tvOrders.setItems(orders);
+        tvPOs.setItems(poList);
+        cbStatus.getItems().addAll("ALL", "OPEN", "RECEIVED");
+        cbStatus.setValue("ALL");
 
-        // อัปเดตสถานะปุ่มตาม selection
-        tvOrders.getSelectionModel().selectedItemProperty().addListener((obs, old, sel) -> updateButtons());
-
-        // โหลดข้อมูลครั้งแรก
-        safeRefresh();
+        // โหลด PO รอบแรก
+        reloadPOsAsync();
     }
 
-    // -------------------- Event Handlers --------------------
+    @Override
+    public void onParams(Map<String, Object> params) {
+        if (params == null) return;
+        // รับ draft lines มาจาก Inventory
+        Object x = params.get("draftFromInventory");
+        if (x instanceof List<?> list) {
+            List<OrderRow> rows = list.stream().map(obj -> {
+                if (obj instanceof InventoryRow.DraftLine dl) {
+                    int needed = Math.max(0, dl.getOrderQty());
+                    int orderQty = needed; // default เท่ากับ needed แก้ได้ในตาราง
+                    return new OrderRow(dl.getSupplier(), dl.getPartCode(), dl.getName(), needed, orderQty);
+                }
+                return null;
+            }).filter(Objects::nonNull).toList();
+            addDraftRows(rows); // เติมเข้า backlog
+            // (ถ้ามี TabPane ให้สลับไปแท็บ Backlog ที่นี่)
+        }
+    }
 
-    /** กด "รีเฟรช" → โหลดไฟล์ JSON ใหม่ */
+    // ---- Draft actions ----
     @FXML
-    private void onRefresh() {
-        safeRefresh();
+    private void onClearDraft() {
+        draftMaster.clear();
+        draftFiltered.clear();
+        cbSupplierDraft.getSelectionModel().clearSelection();
+        txtSearchDraft.clear();
+        lblStatus.setText("เคลียร์ Draft แล้ว");
+    }
+
+    @FXML
+    private void onCreatePOs() {
+        if (draftMaster.isEmpty()) {
+            showInfo("ไม่มีรายการใน Draft");
+            return;
+        }
+        // สร้าง PO ต่อ supplier แบบ background
+        Task<Integer> t = new Task<>() {
+            @Override protected Integer call() {
+                Map<String, List<OrderRow>> grouped = draftMaster.stream()
+                        .collect(Collectors.groupingBy(OrderRow::getSupplier, TreeMap::new, Collectors.toList()));
+                int count = 0;
+                for (var e : grouped.entrySet()) {
+                    if (e.getValue().isEmpty()) continue;
+                    orderService.createOrAppendDraftPO(e.getKey(), e.getValue());
+                    count++;
+                }
+                // ❗️ห้ามแก้ UI/ObservableList ที่นี่ (background)
+                return count;
+            }
+        };
+        beforeTask(t);
+        t.setOnSucceeded(ev -> {
+            afterTask();
+            // ✅ เคลียร์ Draft บน FX Thread เท่านั้น
+            draftMaster.clear();
+            draftFiltered.clear();
+            cbSupplierDraft.getItems().clear();
+            txtSearchDraft.clear();
+
+            lblStatus.setText("สร้าง PO ต่อ supplier จำนวน " + t.getValue() + " ฉบับ");
+            reloadPOsAsync();      // โหลดรายการ PO ใหม่
+            applyDraftFilter();    // รีเฟรชมุมมอง Draft
+        });
+        t.setOnFailed(ev -> {
+            afterTask();
+            showError(t.getException());
+        });
+        new Thread(t, "create-pos").start();
+    }
+
+    // ---- PO actions ----
+    @FXML
+    private void onReloadPOs() {
+        reloadPOsAsync();
+    }
+
+    @FXML
+    private void onSubmitPO() {
+        PurchaseOrder po = tvPOs.getSelectionModel().getSelectedItem();
+        if (po == null) { showInfo("กรุณาเลือก PO"); return; }
+        Task<Void> t = new Task<>() {
+            @Override protected Void call() {
+                orderService.submitPO(po.getId());
+                return null;
+            }
+        };
+        beforeTask(t);
+        t.setOnSucceeded(e -> { afterTask(); lblStatus.setText("Submit PO เรียบร้อย"); reloadPOsAsync(); });
+        t.setOnFailed(e -> { afterTask(); showError(t.getException()); });
+        new Thread(t, "submit-po").start();
+    }
+
+    @FXML
+    private void onMarkReceived() {
+        PurchaseOrder po = tvPOs.getSelectionModel().getSelectedItem();
+        if (po == null) { showInfo("กรุณาเลือก PO"); return; }
+        TextInputDialog dlg = new TextInputDialog("");
+        dlg.setTitle("Mark Received");
+        dlg.setHeaderText("หมายเหตุ/เลขใบส่งของ (ถ้ามี)");
+        dlg.setContentText("Note:");
+        String note = dlg.showAndWait().orElse("");
+        Task<Void> t = new Task<>() {
+            @Override protected Void call() {
+                orderService.receivePO(po.getId(), note);
+                return null;
+            }
+        };
+        beforeTask(t);
+        t.setOnSucceeded(e -> { afterTask(); lblStatus.setText("รับเข้าเรียบร้อย"); reloadPOsAsync(); });
+        t.setOnFailed(e -> { afterTask(); showError(t.getException()); });
+        new Thread(t, "receive-po").start();
+    }
+
+    @FXML
+    private void onExportCsv() {
+        try {
+            orderService.exportPOsCsv(new ArrayList<>(poList));
+            showInfo("Export CSV สำเร็จ (ดูโฟลเดอร์ export/)");
+        } catch (Exception e) {
+            showError(e);
+        }
+    }
+
+    // ---- PO loading with filter ----
+    private void reloadPOsAsync() {
+        final String status = cbStatus.getValue();
+        final String supplier = cbSupplierPo.getValue();
+        final LocalDate from = dpFrom.getValue();
+        final LocalDate to = dpTo.getValue();
+
+        Task<List<PurchaseOrder>> t = new Task<>() {
+            @Override protected List<PurchaseOrder> call() {
+                return orderService.listPOs(status, supplier, from, to);
+            }
+        };
+        beforeTask(t);
+        t.setOnSucceeded(e -> {
+            afterTask();
+            poList.setAll(t.getValue());
+            // เติม combo supplier จากรายการ
+            Set<String> sups = poList.stream().map(PurchaseOrder::getSupplier)
+                    .filter(s -> s != null && !s.isBlank())
+                    .collect(Collectors.toCollection(TreeSet::new));
+            cbSupplierPo.getItems().setAll(sups);
+            lblStatus.setText("โหลด PO: " + poList.size());
+        });
+        t.setOnFailed(e -> { afterTask(); showError(t.getException()); });
+        new Thread(t, "reload-pos").start();
+    }
+
+    // ---- Helpers ----
+    private void addDraftRows(List<OrderRow> rows) {
+        draftMaster.addAll(rows);
+        // เติม supplier filter
+        Set<String> sups = draftMaster.stream().map(OrderRow::getSupplier)
+                .filter(s -> s != null && !s.isBlank())
+                .collect(Collectors.toCollection(TreeSet::new));
+        cbSupplierDraft.getItems().setAll(sups);
+        applyDraftFilter();
+        lblStatus.setText("เพิ่ม Draft: " + rows.size() + " รายการ");
+    }
+
+    private void applyDraftFilter() {
+        final String kw = Optional.ofNullable(txtSearchDraft.getText()).orElse("").trim().toLowerCase();
+        final String sup = cbSupplierDraft.getValue();
+        Predicate<OrderRow> p = r -> {
+            if (!kw.isEmpty()) {
+                if (!(r.getPartCode().toLowerCase().contains(kw) || r.getName().toLowerCase().contains(kw)))
+                    return false;
+            }
+            if (sup != null && !sup.isBlank() && !Objects.equals(sup, r.getSupplier())) return false;
+            return true;
+        };
+        draftFiltered.setAll(draftMaster.stream().filter(p).toList());
+    }
+
+    private void beforeTask(Task<?> t) {
+        progress.setVisible(true);
+        lblStatus.setText("กำลังทำงาน...");
+    }
+    private void afterTask() {
+        progress.setVisible(false);
+    }
+    private void showError(Throwable ex) {
+        ex.printStackTrace();
+        Alert a = new Alert(Alert.AlertType.ERROR, String.valueOf(ex.getMessage()), ButtonType.OK);
+        a.setHeaderText("เกิดข้อผิดพลาด");
+        a.showAndWait();
+    }
+    private void showInfo(String msg) {
+        Alert a = new Alert(Alert.AlertType.INFORMATION, msg, ButtonType.OK);
+        a.setHeaderText(null);
+        a.showAndWait();
     }
 
     /**
-     * กด "สั่งซื้อ" → สร้าง PO ตัวอย่าง (ปรับเชื่อมกับหน้าจริงได้ภายหลัง)
+     * IntegerEditingCell: cell editor สำหรับจำนวนสั่งซื้อ (รองรับแก้ไขตัวเลข)
      */
-    @FXML
-    private void onPlace() {
-        Dialog<PurchaseOrder> dialog = new Dialog<>();
-        dialog.setTitle("สร้างใบสั่งซื้อ (ตัวอย่าง)");
-        dialog.setHeaderText("สร้าง PO ตัวอย่างเพื่อทดสอบ flow");
+    private static class IntegerEditingCell extends TableCell<OrderRow, Number> {
+        private final TextField textField = new TextField();
 
-        Label lbl = new Label("Supplier:");
-        TextField tfSupplier = new TextField("Default Supplier");
-        GridPane gp = new GridPane();
-        gp.setHgap(8); gp.setVgap(8);
-        gp.addRow(0, lbl, tfSupplier);
-        dialog.getDialogPane().setContent(gp);
-        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-
-        dialog.setResultConverter(bt -> {
-            if (bt == ButtonType.OK) {
-                String supplier = tfSupplier.getText().trim().isEmpty() ? "Unknown" : tfSupplier.getText().trim();
-
-                // ⚠ โมเดล Part ของคุณรับ 4 พารามิเตอร์: name, qty, unit, unitPrice
-                List<Part> items = new ArrayList<>();
-                items.add(new Part("ตัวอย่างอะไหล่", 1, "ชิ้น", 100.0));
-
-                String id = "PO-" + System.currentTimeMillis();
-                PurchaseOrder po = new PurchaseOrder(id, supplier, LocalDate.now());
-                for (Part p : items) po.addItem(p);
-                return po;
+        public IntegerEditingCell() {
+            textField.setOnAction(e -> commitEditSafe());
+            textField.focusedProperty().addListener((obs, was, is) -> {
+                if (!is) commitEditSafe();
+            });
+        }
+        @Override
+        public void startEdit() {
+            super.startEdit();
+            if (isEmpty()) return;
+            textField.setText(getItem() == null ? "0" : String.valueOf(getItem().intValue()));
+            setGraphic(textField);
+            setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+            textField.requestFocus();
+            textField.selectAll();
+        }
+        @Override
+        public void cancelEdit() {
+            super.cancelEdit();
+            setContentDisplay(ContentDisplay.TEXT_ONLY);
+            setGraphic(null);
+        }
+        @Override
+        protected void updateItem(Number item, boolean empty) {
+            super.updateItem(item, empty);
+            if (empty) {
+                setText(null);
+                setGraphic(null);
+            } else if (isEditing()) {
+                setGraphic(textField);
+                setText(null);
+                setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+            } else {
+                setText(String.valueOf(item == null ? 0 : item.intValue()));
+                setGraphic(null);
+                setContentDisplay(ContentDisplay.TEXT_ONLY);
             }
-            return null;
-        });
-
-        Optional<PurchaseOrder> res = dialog.showAndWait();
-        if (res.isEmpty()) return;
-
-        PurchaseOrder newPo = res.get();
-        List<PurchaseOrder> all = new ArrayList<>(orders);
-        all.add(0, newPo);
-        if (safeSaveAll(all)) {
-            orders.setAll(all);
-            tvOrders.getSelectionModel().select(newPo);
-            info("สร้างใบสั่งซื้อสำเร็จ", "PO ID: " + newPo.getId());
         }
-    }
-
-    /** กด "รับเข้า (ปิด PO)" → เปลี่ยนสถานะ received=true แล้วบันทึก */
-    @FXML
-    private void onReceive() {
-        PurchaseOrder sel = tvOrders.getSelectionModel().getSelectedItem();
-        if (sel == null) {
-            warn("ยังไม่ได้เลือก PO", "โปรดเลือกใบสั่งซื้อก่อน");
-            return;
-        }
-        if (sel.isReceived()) {
-            info("สถานะ", "ใบสั่งซื้อนี้ปิดแล้ว");
-            return;
-        }
-        if (!confirm("ยืนยันรับเข้า", "ต้องการปิด PO นี้ใช่หรือไม่?\n\nPO: " + sel.getId())) return;
-
-        sel.markAsReceived();
-        if (safeSaveAll(orders)) {
-            tvOrders.refresh();
-            info("สำเร็จ", "ปิด PO เรียบร้อย");
-        }
-    }
-
-    /** กด "ยกเลิก" → ลบ PO ออกจากรายการ */
-    @FXML
-    private void onCancel() {
-        PurchaseOrder sel = tvOrders.getSelectionModel().getSelectedItem();
-        if (sel == null) {
-            warn("ยังไม่ได้เลือก PO", "โปรดเลือกใบสั่งซื้อก่อน");
-            return;
-        }
-        if (!confirm("ยืนยันยกเลิก", "ต้องการลบ PO นี้ใช่หรือไม่?\n\nPO: " + sel.getId())) return;
-
-        List<PurchaseOrder> all = new ArrayList<>(orders);
-        all.remove(sel);
-        if (safeSaveAll(all)) {
-            orders.setAll(all);
-            info("สำเร็จ", "ลบ PO เรียบร้อย");
-        }
-    }
-
-    // -------------------- Internal helpers --------------------
-
-    /** โหลดข้อมูล PO ทั้งหมดแบบปลอดภัยและ update ตาราง */
-    private void safeRefresh() {
-        try {
-            ensurePoFileExists();
-            List<PurchaseOrder> list = repo.findAll();
-            orders.setAll(list);
-            updateButtons();
-        } catch (RuntimeException ex) {
-            error("โหลดข้อมูลล้มเหลว", ex);
-        }
-    }
-
-    /** เซฟข้อมูลทั้งหมดกลับไฟล์ JSON โดยสร้างโฟลเดอร์/ไฟล์ให้ถ้ายังไม่มี */
-    private boolean safeSaveAll(List<PurchaseOrder> all) {
-        try {
-            ensurePoFileExists();
-            repo.saveAll(all);
-            return true;
-        } catch (RuntimeException ex) {
-            error("บันทึกข้อมูลล้มเหลว", ex);
-            return false;
-        }
-    }
-
-    /** สร้าง data/purchase_orders.json เป็น [] ถ้าไม่พบ */
-    private void ensurePoFileExists() {
-        try {
-            File dataDir = PO_JSON.getParent().toFile();
-            if (!dataDir.exists() && !dataDir.mkdirs()) {
-                throw new IllegalStateException("ไม่สามารถสร้างโฟลเดอร์: " + dataDir.getAbsolutePath());
+        private void commitEditSafe() {
+            try {
+                int val = Integer.parseInt(textField.getText().trim());
+                if (val < 0) val = 0;
+                commitEdit(val);
+            } catch (NumberFormatException ignored) {
+                cancelEdit();
             }
-            if (!Files.exists(PO_JSON)) {
-                try (FileWriter w = new FileWriter(PO_JSON.toFile())) {
-                    w.write("[]");
-                }
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("เตรียมไฟล์ PO ไม่สำเร็จ: " + PO_JSON, e);
         }
-    }
-
-    private void updateButtons() {
-        PurchaseOrder sel = tvOrders.getSelectionModel().getSelectedItem();
-        boolean hasSel = sel != null;
-        btnReceive.setDisable(!hasSel || (hasSel && sel.isReceived()));
-        btnCancel.setDisable(!hasSel);
-        btnPlace.setDisable(false);
-    }
-
-    private String ns(String s) { return s == null ? "" : s; }
-
-    private void info(String title, String msg) {
-        Alert a = new Alert(Alert.AlertType.INFORMATION);
-        a.setTitle(title); a.setHeaderText(null); a.setContentText(msg);
-        a.showAndWait();
-    }
-
-    private void warn(String title, String msg) {
-        Alert a = new Alert(Alert.AlertType.WARNING);
-        a.setTitle(title); a.setHeaderText(null); a.setContentText(msg);
-        a.showAndWait();
-    }
-
-    private void error(String title, Exception ex) {
-        ex.printStackTrace();
-        Alert a = new Alert(Alert.AlertType.ERROR);
-        a.setTitle(title);
-        a.setHeaderText(title);
-        a.setContentText(String.valueOf(ex.getMessage()));
-        String stack = getStackTrace(ex);
-        TextArea ta = new TextArea(stack);
-        ta.setEditable(false); ta.setWrapText(false);
-        ta.setMaxWidth(Double.MAX_VALUE); ta.setMaxHeight(Double.MAX_VALUE);
-        a.getDialogPane().setExpandableContent(ta);
-        a.showAndWait();
-    }
-
-    private boolean confirm(String title, String msg) {
-        Alert a = new Alert(Alert.AlertType.CONFIRMATION);
-        a.setTitle(title); a.setHeaderText(title); a.setContentText(msg);
-        ButtonType ok = new ButtonType("ยืนยัน", ButtonBar.ButtonData.OK_DONE);
-        ButtonType cancel = new ButtonType("ยกเลิก", ButtonBar.ButtonData.CANCEL_CLOSE);
-        a.getButtonTypes().setAll(ok, cancel);
-        return a.showAndWait().filter(bt -> bt == ok).isPresent();
-    }
-
-    private String getStackTrace(Throwable t) {
-        StringBuilder sb = new StringBuilder();
-        while (t != null) {
-            sb.append(t).append("\n");
-            for (StackTraceElement el : t.getStackTrace()) {
-                sb.append("  at ").append(el).append("\n");
-            }
-            t = t.getCause();
-            if (t != null) sb.append("Caused by: ");
-        }
-        return sb.toString();
     }
 }

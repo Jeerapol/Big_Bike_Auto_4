@@ -22,7 +22,7 @@ public class Router {
         ROUTES.put("dashboard", "/com/example/big_bike_auto/Dashboard.fxml");
         ROUTES.put("register", "/com/example/big_bike_auto/register.fxml");
         ROUTES.put("repairDetails", "/com/example/big_bike_auto/RepairDetails.fxml");
-        ROUTES.put("inventory", "/com/example/big_bike_auto/Inventory.fxml");
+        ROUTES.put("inventory", "/com/example/big_bike_auto/InventoryPage.fxml");
         ROUTES.put("ordersPage", "/com/example/big_bike_auto/OrdersPage.fxml");
         ROUTES.put("lookup", "/com/example/big_bike_auto/CustomerLookup.fxml");
 

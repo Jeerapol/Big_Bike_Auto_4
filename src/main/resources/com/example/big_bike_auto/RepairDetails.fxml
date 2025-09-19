@@ -87,6 +87,8 @@
                 <TextField fx:id="tfUnitPrice" promptText="ราคา/หน่วย" prefWidth="120"/>
                 <Button text="เพิ่มรายการ" onAction="#onAddPart"/>
                 <Button text="ลบรายการที่เลือก" onAction="#onRemoveSelectedPart"/>
+                <!-- ⭐ ปุ่มใหม่ ส่งรายการขาดไป Backlog สั่งซื้อ -->
+                <Button text="ส่งรายการที่ขาดไปสั่งซื้อ" onAction="#onSendShortageToOrders"/>
                 <Region HBox.hgrow="ALWAYS"/>
                 <HBox spacing="6" alignment="CENTER_RIGHT">
                     <Label text="รวมทั้งหมด:"/>

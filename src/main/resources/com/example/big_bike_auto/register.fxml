@@ -4,7 +4,7 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.text.*?>
 
-<AnchorPane prefHeight="520.0" prefWidth="720.0" xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.example.big_bike_auto.controller.RegisterController">
+<AnchorPane prefHeight="580.0" prefWidth="720.0" xmlns="http://javafx.com/javafx/17.0.12" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.example.big_bike_auto.controller.RegisterController">
 
     <children>
         <!-- ส่วนหัว -->
@@ -23,6 +23,7 @@
                 <RowConstraints minHeight="32" />
                 <RowConstraints minHeight="32" />
                 <RowConstraints minHeight="32" />
+                <RowConstraints minHeight="32" />   <!-- ⭐ เพิ่มแถวรุ่นรถ -->
                 <RowConstraints minHeight="120" />
             </rowConstraints>
 
@@ -46,26 +47,22 @@
             <Label text="วันที่ลงทะเบียน:" GridPane.columnIndex="0" GridPane.rowIndex="4" />
             <DatePicker fx:id="dpRegisteredDate" GridPane.columnIndex="1" GridPane.rowIndex="4" />
 
-            <!-- สถานะ (ใช้ ComboBox) -->
+            <!-- สถานะ -->
             <Label text="สถานะ:" GridPane.columnIndex="0" GridPane.rowIndex="5" />
             <ComboBox fx:id="cbStatus" promptText="เลือกสถานะ" GridPane.columnIndex="1" GridPane.rowIndex="5" />
 
+            <!-- ⭐ รุ่นรถ (ComboBox editable) -->
+            <Label text="รุ่นรถ:" GridPane.columnIndex="0" GridPane.rowIndex="6" />
+            <ComboBox fx:id="cbBikeModel" editable="true" promptText="เลือกหรือพิมพ์รุ่นรถ" GridPane.columnIndex="1" GridPane.rowIndex="6" />
+
             <!-- อาการเสีย -->
-            <Label text="อาการเสีย:" GridPane.columnIndex="0" GridPane.rowIndex="6" GridPane.valignment="TOP" />
-            <TextArea fx:id="taSymptom" prefRowCount="4" promptText="ระบุอาการเสียโดยสังเขป" GridPane.columnIndex="1" GridPane.rowIndex="6" />
+            <Label text="อาการเสีย:" GridPane.columnIndex="0" GridPane.rowIndex="7" GridPane.valignment="TOP" />
+            <TextArea fx:id="taSymptom" prefRowCount="4" promptText="ระบุอาการเสียโดยสังเขป" GridPane.columnIndex="1" GridPane.rowIndex="7" />
         </GridPane>
 
         <!-- ปุ่มบันทึก -->
-        <Button fx:id="btnSave" layoutX="273.0" layoutY="466.0" prefHeight="40" prefWidth="174.0" text="บันทึก">
-         <font>
-            <Font name="System Bold" size="19.0" />
-         </font></Button>
+        <Button fx:id="btnSave" layoutX="273.0" layoutY="508.0" prefHeight="40" prefWidth="174.0" text="บันทึก">
+            <font><Font name="System Bold" size="19.0" /></font>
+        </Button>
     </children>
-
-    <!-- สไตล์เพิ่มเติม (ถ้ามีไฟล์ styles.css อยู่ข้างๆ FXML นี้) -->
-    <!--
-    <stylesheets>
-        <String fx:value="@styles.css"/>
-    </stylesheets>
-    -->
 </AnchorPane>

@@ -1,5 +1,6 @@
 package com.example.big_bike_auto.controller;
 
+import com.example.big_bike_auto.model.RepairStatus;
 import com.example.big_bike_auto.router.ReceivesParams;
 import com.example.big_bike_auto.router.RouterHub;
 import javafx.beans.property.*;
@@ -7,6 +8,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.util.StringConverter;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -29,7 +31,7 @@ public class RepairDetailsController implements ReceivesParams {
     @FXML private Label lbCustomerName;
     @FXML private Label lbBikeModel;
     @FXML private Label lbReceivedDate;
-    @FXML private ComboBox<String> cbStatus;
+    @FXML private ComboBox<RepairStatus> cbStatus; // ใช้ enum สำหรับค่าจริง
 
     // ===== note =====
     @FXML private TextArea taNotes;
@@ -56,7 +58,13 @@ public class RepairDetailsController implements ReceivesParams {
     private List<Map<String, Object>> allCustomers; // ทั้งไฟล์
     private String currentId;
 
-    private static final List<String> STATUSES = List.of("RECEIVED", "IN_PROGRESS", "WAITING_PARTS", "COMPLETED", "CANCELLED");
+    private static final List<RepairStatus> STATUSES = List.of(
+            RepairStatus.RECEIVED,
+            RepairStatus.IN_PROGRESS,
+            RepairStatus.WAITING_PARTS,
+            RepairStatus.COMPLETED,
+            RepairStatus.CANCELLED
+    );
 
     @FXML
     public void initialize() {
@@ -68,7 +76,20 @@ public class RepairDetailsController implements ReceivesParams {
         colTotal.setCellValueFactory(data -> new SimpleStringProperty(formatMoney(data.getValue().getTotal())));
         tvParts.setItems(parts);
 
+        // ComboBox: แสดงเป็นภาษาไทย แต่ค่าเป็น enum
+        cbStatus.setConverter(new StringConverter<>() {
+            @Override public String toString(RepairStatus s) {
+                return (s == null) ? "" : s.labelTH();
+            }
+            @Override public RepairStatus fromString(String str) {
+                return STATUSES.stream()
+                        .filter(s -> Objects.equals(s.labelTH(), str))
+                        .findFirst()
+                        .orElse(RepairStatus.RECEIVED);
+            }
+        });
         cbStatus.getItems().setAll(STATUSES);
+
         updateGrandTotalLabel();
     }
 
@@ -119,8 +140,10 @@ public class RepairDetailsController implements ReceivesParams {
             warn("ไม่พร้อมบันทึก", "ยังไม่พบข้อมูลลูกค้า");
             return;
         }
-        // อัปเดตค่าจาก UI -> currentCustomer map
-        setMap(currentCustomer, "status", cbStatus.getValue());
+        // ✅ บันทึกเป็น code (String) ของสถานะ
+        RepairStatus st = cbStatus.getValue();
+        setMap(currentCustomer, "status", st == null ? RepairStatus.RECEIVED.code() : st.code());
+
         Map<String, Object> repair = asMap(currentCustomer.get("repair"));
         if (repair == null) {
             repair = new LinkedHashMap<>();
@@ -131,15 +154,39 @@ public class RepairDetailsController implements ReceivesParams {
         setMap(repair, "grandTotal", parts.stream().mapToDouble(PartRow::getTotal).sum());
         setMap(repair, "lastUpdated", java.time.LocalDateTime.now().toString());
 
-        // เขียนกลับไฟล์
         writeCustomers(allCustomers);
         info("บันทึกสำเร็จ", "อัปเดตข้อมูลงานซ่อมแล้ว");
-        // อยู่หน้านี้ต่อ หรือจะกลับหน้าก่อนก็ได้ตามต้องการ
     }
 
     @FXML
     private void onBack() {
         RouterHub.getRouter().navigate("dashboard");
+    }
+
+    /**
+     * ⭐ เมธอดที่ FXML เรียกใช้: ส่ง “คำค้นอะไหล่” ไปหน้า Inventory
+     * เหมาะเมื่อสถานะเป็น “รออะไหล่” ให้ทีมไป match part จริงแล้วส่งต่อ Draft PO
+     */
+    @FXML
+    private void onSendShortageToOrders() {
+        if (parts.isEmpty()) {
+            warn("ไม่มีรายการ", "ยังไม่มีรายการอะไหล่ในตาราง");
+            return;
+        }
+        String q = parts.stream()
+                .map(PartRow::getPartName)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .distinct()
+                .collect(Collectors.joining(" "));
+        if (q.isBlank()) {
+            warn("ไม่มีคำค้น", "กรุณาระบุชื่ออะไหล่อย่างน้อย 1 รายการ");
+            return;
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put("q", q);
+        RouterHub.getRouter().navigate("inventory", params);
     }
 
     // ===== load/save helpers =====
@@ -168,9 +215,10 @@ public class RepairDetailsController implements ReceivesParams {
             } catch (Exception ignore) { lbReceivedDate.setText(received); }
         } else lbReceivedDate.setText("-");
 
-        String status = safe(currentCustomer.get("status")).toUpperCase(Locale.ROOT);
-        if (!STATUSES.contains(status)) status = "RECEIVED";
-        cbStatus.getSelectionModel().select(status);
+        // ---- สถานะ: เก็บเป็น code (String) → แปลงเป็น enum แล้ว select ----
+        String statusCode = safe(currentCustomer.get("status"));
+        RepairStatus statusEnum = RepairStatus.fromCode(statusCode);
+        cbStatus.getSelectionModel().select(statusEnum);
 
         // ---- repair ----
         Map<String, Object> repair = asMap(currentCustomer.get("repair"));
@@ -300,6 +348,7 @@ public class RepairDetailsController implements ReceivesParams {
         }
 
         public StringProperty partNameProperty() { return partName; }
+        public String getPartName() { return partName.get(); } // ใช้รวมคำค้นส่งไปหน้า Inventory
         public StringProperty unitProperty() { return unit; }
         public double getQuantity() { return quantity.get(); }
         public double getUnitPrice() { return unitPrice.get(); }

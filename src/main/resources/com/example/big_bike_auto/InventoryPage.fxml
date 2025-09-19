@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.example.big_bike_auto.controller.InventoryPageController">
+
+    <top>
+        <VBox spacing="8">
+            <children>
+                <!-- แถวค้นหา/กรอง -->
+                <HBox spacing="8" BorderPane.alignment="CENTER">
+                    <children>
+                        <TextField fx:id="txtSearch" promptText="ค้นหา รหัส/ชื่อสินค้า"/>
+                        <ComboBox fx:id="cbSupplier" promptText="ซัพพลายเออร์"/>
+                        <ComboBox fx:id="cbCategory" promptText="หมวดหมู่"/>
+                        <CheckBox fx:id="chkOnlyShortage" text="แสดงเฉพาะที่ขาด"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <!-- 🔹 ปุ่มใหม่: เพิ่มสินค้า -->
+                        <Button text="เพิ่มสินค้า" onAction="#onCreatePart"/>
+                        <Button text="คำนวณใหม่" onAction="#onRecalculate"/>
+                        <Button text="เพิ่มไปยัง Draft PO" onAction="#onAddToDraft"/>
+                        <Button text="ปรับสต็อก" onAction="#onAdjustStock"/>
+                        <Button text="ส่งออก CSV" onAction="#onExportCsv"/>
+                    </children>
+                    <padding><Insets top="10" right="10" bottom="0" left="10"/></padding>
+                </HBox>
+
+                <!-- สรุป KPI -->
+                <HBox spacing="16" BorderPane.alignment="CENTER_LEFT">
+                    <children>
+                        <Label fx:id="lblTotalParts" text="จำนวนรายการ: 0"/>
+                        <Label fx:id="lblShortage" text="จำนวนที่ขาด: 0"/>
+                        <Label fx:id="lblOnOrder" text="กำลังสั่งซื้อ: 0"/>
+                        <Label fx:id="lblInStockSum" text="คงเหลือรวม: 0"/>
+                    </children>
+                    <padding><Insets top="0" right="10" bottom="10" left="10"/></padding>
+                </HBox>
+            </children>
+        </VBox>
+    </top>
+
+    <center>
+        <TableView fx:id="tvInventory" prefHeight="600">
+            <columns>
+                <TableColumn fx:id="colCode" text="รหัส" prefWidth="120"/>
+                <TableColumn fx:id="colName" text="ชื่อสินค้า" prefWidth="240"/>
+                <TableColumn fx:id="colSupplier" text="ซัพพลายเออร์" prefWidth="140"/>
+                <TableColumn fx:id="colCategory" text="หมวดหมู่" prefWidth="140"/>
+                <TableColumn fx:id="colInStock" text="คงเหลือ" prefWidth="90"/>
+                <TableColumn fx:id="colMinStock" text="ขั้นต่ำ" prefWidth="70"/>
+                <TableColumn fx:id="colReserved" text="จองไว้" prefWidth="90"/>
+                <TableColumn fx:id="colOnOrder" text="กำลังสั่งซื้อ" prefWidth="90"/>
+                <TableColumn fx:id="colNeeded" text="ต้องการสั่ง" prefWidth="90"/>
+            </columns>
+        </TableView>
+    </center>
+
+    <bottom>
+        <HBox spacing="8" alignment="CENTER_RIGHT">
+            <children>
+                <ProgressIndicator fx:id="progress" visible="false"/>
+                <Label fx:id="lblStatus" text=""/>
+            </children>
+            <padding><Insets top="8" right="10" bottom="10" left="10"/></padding>
+        </HBox>
+    </bottom>
+</BorderPane>

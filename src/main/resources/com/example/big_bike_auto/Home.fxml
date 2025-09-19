@@ -6,6 +6,7 @@
 
 <BorderPane xmlns="http://javafx.com/javafx/21.0.1" xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="com.example.big_bike_auto.controller.HomeController"
+            fx:id="root"
             prefWidth="1200" prefHeight="800">
 
     <!-- Header + MenuBar (รวมอยู่ใน <top> เดียว) -->
