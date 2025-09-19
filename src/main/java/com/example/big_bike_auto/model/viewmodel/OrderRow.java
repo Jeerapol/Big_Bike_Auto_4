@@ -2,11 +2,7 @@ package com.example.big_bike_auto.model.viewmodel;
 
 import javafx.beans.property.*;
 
-/**
- * ViewModel สำหรับ Draft ในหน้า Orders
- * - supplier/partCode/name/needed/orderQty
- * - ใช้ Property เพื่อรองรับการแก้ไข orderQty ใน TableView
- */
+
 public class OrderRow {
     private final StringProperty supplier = new SimpleStringProperty();
     private final StringProperty partCode = new SimpleStringProperty();

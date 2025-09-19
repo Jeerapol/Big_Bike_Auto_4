@@ -7,12 +7,7 @@ import javafx.scene.Parent;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Router:
- * - แปลง key เป็นพาธ FXML แล้วโหลด
- * - เซ็ต content ผ่าน HomeController.setContent(...)
- * - รองรับการส่งพารามิเตอร์ให้ controller ด้วย ReceivesParams
- */
+
 public class Router {
 
     private final HomeController home;

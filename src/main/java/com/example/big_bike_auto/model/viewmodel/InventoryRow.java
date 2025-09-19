@@ -2,11 +2,7 @@ package com.example.big_bike_auto.model.viewmodel;
 
 import javafx.beans.property.*;
 
-/**
- * ViewModel สำหรับตาราง Inventory
- * - แยกจาก Controller ให้ javafx.base เข้าถึงได้ (อย่าทำเป็น inner class)
- * - ใช้ JavaFX Property เพื่อ binding ปลอดภัย
- */
+
 public class InventoryRow {
     private final StringProperty partCode = new SimpleStringProperty();
     private final StringProperty name = new SimpleStringProperty();

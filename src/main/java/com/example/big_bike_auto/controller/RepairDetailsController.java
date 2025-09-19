@@ -17,13 +17,7 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * RepairDetailsController:
- * - รับพารามิเตอร์ {"customerId": "..."} จาก Dashboard
- * - โหลดข้อมูลลูกค้าจาก data/customers.json
- * - แสดงหัวงาน + สถานะ + โน้ต + รายการอะไหล่
- * - แก้ไข/เพิ่ม/ลบอะไหล่ และบันทึกกลับไฟล์
- */
+
 public class RepairDetailsController implements ReceivesParams {
 
     // ===== top info =====

@@ -11,20 +11,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-/**
- * JsonUtil:
- * - อ่าน/เขียน JSON ด้วย Gson
- * - มี TypeAdapter สำหรับ LocalDate (เลี่ยงปัญหา reflection กับ java.time)
- * - มี error handling ที่อ่านง่าย และคืนค่าที่คาดเดาได้
- *
- * Junior Note:
- *  - TypeAdapter = ตัวแปลงชนิดพิเศษ ให้เรากำหนดวิธี serialize/deserialize เอง
- *  - ทำให้ไม่ต้องไปเปิด module java.time (ซึ่งทำไม่ได้)
- *
- * Senior Note:
- *  - ใช้ UTF-8 เสมอ, try-with-resources, ข้อความ error ชัดเจน
- *  - ป้องกันไฟล์ว่าง/ไม่มีไฟล์ → คืนลิสต์ว่างแทนการพัง
- */
+
 public final class JsonUtil {
 
     private JsonUtil() {}
@@ -58,12 +45,7 @@ public final class JsonUtil {
             .setPrettyPrinting()
             .create();
 
-    /**
-     * อ่านลิสต์จากไฟล์ JSON เป็นชนิด T
-     * @param filePath พาธไฟล์
-     * @param elementType ชนิดองค์ประกอบในลิสต์ (เช่น PurchaseOrder.class)
-     * @return List<T> ถ้าไฟล์ว่าง/ไม่พบ → คืนลิสต์ว่าง
-     */
+
     public static <T> List<T> readList(String filePath, Class<T> elementType) {
         try {
             File f = new File(filePath);
@@ -87,11 +69,7 @@ public final class JsonUtil {
         }
     }
 
-    /**
-     * เขียนลิสต์ลงไฟล์ JSON
-     * @param filePath พาธไฟล์
-     * @param list ลิสต์ข้อมูล
-     */
+
     public static <T> void writeList(String filePath, List<T> list) {
         try {
             File f = new File(filePath);
@@ -107,9 +85,7 @@ public final class JsonUtil {
         }
     }
 
-    /**
-     * ยูทิลิตี้เล็กๆ สำหรับเตรียมไฟล์เป็น "[]" ถ้ายังไม่มี
-     */
+
     public static void ensureJsonArrayFile(String filePath) {
         try {
             File f = new File(filePath);

@@ -19,12 +19,7 @@ import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-/**
- * InventoryPageController
- * - เพิ่ม onCreatePart(): เปิดฟอร์มเพิ่มสินค้าใหม่ → validate → บันทึกผ่าน PartCrudService → reload
- * - ปรับ selection mode ของตารางให้เลือกได้หลายแถว
- * - อัปเดตสถานะหลังส่ง Draft เพื่อ UX ที่ชัดเจน
- */
+
 public class InventoryPageController implements ReceivesParams {
 
     // UI

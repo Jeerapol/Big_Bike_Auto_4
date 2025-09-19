@@ -9,12 +9,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
 
-/**
- * PartCrudService (final)
- * - สร้าง/อัปเดต Part แบบไม่พึ่งพา no-arg ctor:
- *   ลองตามลำดับ: no-arg -> ctor ชนิด String/int/Integer -> Gson.fromJson("{}" , Part.class)
- * - ป้องกันรหัสซ้ำ + validate เบื้องต้น
- */
+
 public class PartCrudService {
 
     private final PartRepository partRepo = new PartRepository();

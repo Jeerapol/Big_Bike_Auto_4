@@ -17,13 +17,7 @@ import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-/**
- * OrdersPageController
- * - แท็บ Backlog: แสดง draft lines + ให้แก้ orderQty ได้
- * - แท็บ POs: แสดงรายการ PO พร้อมกรอง/รีโหลด/เปลี่ยนสถานะ
- * - ปรับให้ไม่แก้ ObservableList จาก background thread
- * - เปิด selection แบบ MULTIPLE (กรณีต้องใช้ต่อ)
- */
+
 public class OrdersPageController implements ReceivesParams {
 
     // Backlog tab

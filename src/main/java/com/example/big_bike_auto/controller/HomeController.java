@@ -5,23 +5,18 @@ import com.example.big_bike_auto.router.RouterHub;
 import javafx.fxml.FXML;
 import javafx.scene.layout.BorderPane;
 
-/**
- * HomeController:
- * - เป็น Shell หลัก (Header + Menu + content area)
- * - สร้าง Router ด้วย HomeController แล้ว set เข้า RouterHub
- * - นำทางไปหน้าเริ่มต้น (dashboard)
- */
+
 public class HomeController {
 
     @FXML private BorderPane root;
 
     @FXML
     private void initialize() {
-        // ✅ สร้าง Router และผูกกับ Hub
+        // สร้าง Router และผูกกับ Hub
         Router router = new Router(this);
         RouterHub.setRouter(router);
 
-        // ✅ หน้าเริ่มต้น
+        // หน้าเริ่มต้น
         router.navigate("dashboard");
     }
 

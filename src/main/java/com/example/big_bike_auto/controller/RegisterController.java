@@ -15,14 +15,7 @@ import java.time.chrono.ThaiBuddhistDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-/**
- * RegisterController:
- * - ใส่ค่า default วันที่เป็น "วันนี้"
- * - แสดงผลวันที่แบบไทย (พ.ศ.) ใน DatePicker ด้วย StringConverter
- * - เติมตัวเลือกสถานะ + รุ่นรถลง ComboBox (รุ่นรถเป็น editable)
- * - กดบันทึก -> validate, สร้าง customerCode 10 ตัว (A-Z0-9), บันทึกลง data/customers.json
- * - ✅ หลังบันทึกสำเร็จ: แสดง Alert พร้อมปุ่ม "คัดลอกรหัส" เพื่อ copy ไป Clipboard
- */
+
 public class RegisterController {
 
     // ===== FXML =====

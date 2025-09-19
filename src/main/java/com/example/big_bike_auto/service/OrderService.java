@@ -15,15 +15,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * OrderService – เวอร์ชันเข้ากับโมเดลจริงของโปรเจกต์:
- * PurchaseOrder{id, supplier, orderDate, received:boolean, items: List<OrderItem>}
- *
- * หมายเหตุสำคัญ:
- * - โปรเจกต์นี้มี OrderItem(String sku, String name, String unit, int quantity, double unitPrice)
- *   เราจึงต้องลองคอนสตรักเตอร์ 5 พารามิเตอร์ก่อน (รองรับ unit)
- * - ยังคงมี fallback สำหรับซิกเนเจอร์อื่น ๆ เผื่อการเปลี่ยนแปลงในอนาคต
- */
+
 public class OrderService {
 
     private final PurchaseOrderRepository orderRepo = new PurchaseOrderRepository();

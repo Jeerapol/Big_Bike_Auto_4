@@ -4,12 +4,7 @@ import javafx.fxml.FXML;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 
-/**
- * Controller ของ RepairList.fxml
- * หน้าที่:
- *  - แสดงรายการงานซ่อมทั้งหมด
- *  - ปุ่ม refresh, edit, open stock
- */
+
 public class RepairListController {
 
     // Table + Columns

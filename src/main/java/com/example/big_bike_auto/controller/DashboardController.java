@@ -45,7 +45,6 @@ public class DashboardController {
         refresh();
         Platform.runLater(this::refresh);
 
-        // ✅ ดับเบิลคลิกแถวเพื่อเปิดหน้า RepairDetails พร้อมพารามิเตอร์ customerId
         tblRecent.setRowFactory(tv -> {
             TableRow<Map<String, Object>> row = new TableRow<>();
             row.setOnMouseClicked(evt -> {

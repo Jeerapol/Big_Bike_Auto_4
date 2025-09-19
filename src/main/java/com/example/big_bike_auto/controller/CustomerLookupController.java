@@ -17,19 +17,7 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 
-/**
- * หน้า Search by customerCode
- * - ใส่รหัส -> อ่าน data/customers.json -> หา record ที่ customerCode ตรง (ไม่สนตัวพิมพ์)
- * - แสดงสถานะ, อะไหล่, โน้ต, ข้อมูลหัวงาน
- *
- * Junior tips:
- * - fx:id ต้องตรงกับ FXML
- * - อ่าน JSON เป็น List<Map<String,Object>> จะทน schema ได้ดี
- *
- * Senior notes:
- * - ไม่ผูก java.time กับ Gson เพื่อเลี่ยง module-access issue
- * - ฟังก์ชัน pretty/parse ป้องกัน NPE และรูปแบบเวลาหลายแบบ
- */
+
 public class CustomerLookupController {
 
     // input

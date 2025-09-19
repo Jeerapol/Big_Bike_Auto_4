@@ -15,14 +15,7 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * InventoryService
- * - สร้างรายการ InventoryRow สำหรับ TableView
- * - ปรับสต็อก (+/-)
- * - Export CSV
- *
- * Reflection Adapter (PartAccessor/OrderItemAccessor) รองรับทั้ง method และ field
- */
+
 public class InventoryService {
 
     private final PartRepository partRepo = new PartRepository();
