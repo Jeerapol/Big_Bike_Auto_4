@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Customer Lookup – Big Bike Auto</title>
+  <!-- ใช้ Tailwind CDN เพื่อความสะดวก -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900">
+  <!--
+    หน้าเว็บนี้ทำหน้าที่เหมือน JavaFX CustomerLookup:
+    - ใส่ Customer Code (10 ตัวอักษร) แล้วค้นหาใน customers.json
+    - ใช้ข้อมูล rec.repair.* โดยตรง (parts, notes, grandTotal, lastUpdated)
+    โครงสร้างโฟลเดอร์:
+      D:\Code\Java\1\
+        ├─ Big_Bike_Auto\data\customers.json
+        └─ Web\customer-lookup.html
+    ต้องรันเว็บจากโฟลเดอร์แม่ (D:\Code\Java\1):
+      python -m http.server 8000
+      แล้วเปิด http://localhost:8000/Web/customer-lookup.html
+  -->
+
+  <!-- ส่วนค้นหา -->
+  <header class="max-w-5xl mx-auto px-4 py-6">
+    <h1 class="text-2xl font-bold">ค้นหางานซ่อมด้วย Customer Code</h1>
+    <p class="text-sm text-gray-600 mt-1">ตัวอย่าง: HKSOREZTCH (ความยาว 10 ตัวอักษร)</p>
+
+    <div class="mt-4 flex gap-2">
+      <input id="tfCode" class="flex-1 border rounded-lg px-3 py-2"
+             placeholder="ใส่รหัสลูกค้า 10 หลัก เช่น HKSOREZTCH" />
+      <button id="btnSearch" class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">ค้นหา</button>
+      <button id="btnClear" class="px-4 py-2 rounded-lg border hover:bg-gray-50">ล้าง</button>
+    </div>
+
+    <div id="alert" class="mt-3 hidden text-sm"></div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 pb-16 space-y-6">
+
+    <!-- ข้อมูลหัวงาน -->
+    <section class="bg-white rounded-2xl shadow">
+      <details open class="p-0">
+        <summary class="cursor-pointer select-none px-5 py-3 border-b font-semibold">ข้อมูลหัวงาน</summary>
+        <div class="p-5">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-3">
+            <div>
+              <div class="text-sm text-gray-500">Customer Code</div>
+              <div id="lbCode" class="font-semibold"></div>
+            </div>
+            <div>
+              <div class="text-sm text-gray-500">ชื่อลูกค้า</div>
+              <div id="lbName"></div>
+            </div>
+            <div>
+              <div class="text-sm text-gray-500">ทะเบียน</div>
+              <div id="lbPlate"></div>
+            </div>
+            <div>
+              <div class="text-sm text-gray-500">สถานะ</div>
+              <div id="lbStatus" class="font-semibold"></div>
+            </div>
+            <div>
+              <div class="text-sm text-gray-500">อัปเดตล่าสุด</div>
+              <div id="lbUpdated"></div>
+            </div>
+            <div>
+              <div class="text-sm text-gray-500">วันที่รับงาน</div>
+              <div id="lbReceived"></div>
+            </div>
+            <div>
+              <div class="text-sm text-gray-500">รุ่นรถ</div>
+              <div id="lbBike"></div>
+            </div>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- ตารางอะไหล่ -->
+    <section class="bg-white rounded-2xl shadow">
+      <details open class="p-0">
+        <summary class="cursor-pointer select-none px-5 py-3 border-b font-semibold">อะไหล่ที่ใช้</summary>
+        <div class="p-5 overflow-x-auto">
+          <table class="min-w-full border">
+            <thead class="bg-gray-50 text-left">
+              <tr>
+                <th class="px-3 py-2 border">รายการอะไหล่</th>
+                <th class="px-3 py-2 border">จำนวน</th>
+                <th class="px-3 py-2 border">หน่วย</th>
+                <th class="px-3 py-2 border">ราคา/หน่วย</th>
+                <th class="px-3 py-2 border">ราคารวม</th>
+              </tr>
+            </thead>
+            <tbody id="tbParts" class="[&_td]:px-3 [&_td]:py-2 [&_td]:border"></tbody>
+          </table>
+        </div>
+      </details>
+
+      <!-- รวมทั้งสิ้น -->
+      <div class="px-5 pb-5 flex items-center justify-end gap-2">
+        <span>รวมทั้งสิ้น:</span>
+        <span id="lbGrandTotal" class="font-bold"></span>
+      </div>
+    </section>
+
+    <!-- Notes -->
+    <section class="bg-white rounded-2xl shadow">
+      <details open class="p-0">
+        <summary class="cursor-pointer select-none px-5 py-3 border-b font-semibold">บันทึกช่าง (Notes)</summary>
+        <div class="p-5">
+          <textarea id="taNotes" class="w-full border rounded-lg p-3" rows="4" readonly placeholder="—"></textarea>
+        </div>
+      </details>
+    </section>
+
+  </main>
+
+  <script>
+    // npx http-server . -p 8000
+    //
+    const FILES = { customers: "data/customers.json" };
+
+
+    // ---------------------------
+    // Helpers
+    // ---------------------------
+    const $ = (id) => document.getElementById(id);
+
+    // ฟอร์แมตเงินให้สวยงาม (รองรับเลข/สตริง)
+    function fmtMoney(n) {
+      const num = Number(n);
+      return Number.isFinite(num)
+        ? num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : '';
+    }
+
+    // แสดง/ซ่อนแถบแจ้งเตือนสถานะ
+    function showAlert(message, type = 'info') {
+      const el = $('alert');
+      const base = 'mt-3 text-sm px-3 py-2 rounded-lg';
+      const map = {
+        info:    'bg-blue-50 text-blue-700 border border-blue-200',
+        success: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+        warn:    'bg-amber-50 text-amber-800 border border-amber-200',
+        error:   'bg-red-50 text-red-700 border border-red-200',
+      };
+      el.className = `${base} ${map[type] || map.info}`;
+      el.textContent = message;
+      el.classList.remove('hidden');
+    }
+    function hideAlert(){ $('alert').classList.add('hidden'); }
+
+    // อ่าน JSON อย่างปลอดภัย (รองรับไฟล์ว่าง/พาร์สไม่ได้)
+    async function fetchJsonSafe(url) {
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) return { ok:false, data:null, error:`HTTP ${res.status} ${res.statusText}` };
+        const text = await res.text();
+        if (!text.trim()) return { ok:true, data: [], warning: 'empty' };
+        return { ok:true, data: JSON.parse(text) };
+      } catch (e) {
+        return { ok:false, data:null, error: e.message };
+      }
+    }
+
+    // กรองให้ได้ array เสมอ (รองรับเคส {items:[...]} )
+    function toArray(x) {
+      if (Array.isArray(x)) return x;
+      if (x && typeof x === 'object') {
+        for (const k of Object.keys(x)) if (Array.isArray(x[k])) return x[k];
+      }
+      return [];
+    }
+
+    // ป้องกัน XSS เมื่อต้องใส่ข้อความลง innerHTML
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    // ---------------------------
+    // Core: Search & Render
+    // ---------------------------
+
+    // ค้นหาด้วย Customer Code (ต้องยาว 10 ตัวอักษร A-Z/0-9)
+    async function onSearch() {
+      hideAlert();
+      const code = $('tfCode').value.trim();
+      if (!/^[A-Za-z0-9]{10}$/.test(code)) {
+        showAlert('กรุณาใส่ Customer Code 10 ตัวอักษร (A-Z, 0-9)', 'warn');
+        return;
+      }
+
+      // โหลด customers.json
+      const cRes = await fetchJsonSafe(FILES.customers);
+      if (!cRes.ok) {
+        showAlert(`โหลด customers.json ไม่สำเร็จ: ${cRes.error}`, 'error');
+        return;
+      }
+
+      const customers = toArray(cRes.data);
+      // หาเรคคอร์ดที่ code ตรง
+      const customer = customers.find(
+        x => (x.customerCode || '').toUpperCase() === code.toUpperCase()
+      );
+
+      if (!customer) {
+        renderHeader(null);
+        renderParts([]);
+        renderNotes('');
+        showAlert(`ไม่พบข้อมูลลูกค้าที่มีโค้ด: ${code}`, 'warn');
+        return;
+      }
+
+      // ใช้ข้อมูลจาก repair โดยตรง
+      renderHeader(customer);
+      renderParts(customer.repair?.parts || []);
+      // ถ้ามี grandTotal ในไฟล์ ใช้เลย; ถ้าไม่มีจะคำนวณจาก parts
+      const totalFromFile = Number(customer.repair?.grandTotal);
+      if (Number.isFinite(totalFromFile)) {
+        $('lbGrandTotal').textContent = fmtMoney(totalFromFile);
+      }
+      renderNotes(customer.repair?.notes || '');
+
+      showAlert(`โหลดข้อมูลสำเร็จสำหรับ ${code}`, 'success');
+    }
+
+    // แสดงหัวงาน (map ฟิลด์ตาม JSON ที่ให้มา)
+    function renderHeader(rec) {
+      const safe = (v) => v ?? '';
+      $('lbCode').textContent     = safe(rec?.customerCode);
+      $('lbName').textContent     = safe(rec?.name);
+      $('lbPlate').textContent    = safe(rec?.plate);
+      $('lbStatus').textContent   = safe(rec?.status);
+      $('lbUpdated').textContent  = safe(rec?.repair?.lastUpdated);
+      $('lbReceived').textContent = safe(rec?.receivedDate);
+      $('lbBike').textContent     = safe(rec?.bikeModel);
+    }
+
+    // เรนเดอร์ตารางอะไหล่ + คำนวณรวม (ในกรณีไม่มี grandTotal ให้มาด้วย)
+    function renderParts(rows) {
+      const tbody = $('tbParts');
+      tbody.innerHTML = '';
+
+      let sum = 0;
+      if (!rows || rows.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td colspan="5" class="text-center text-gray-500">— ไม่มีรายการอะไหล่ —</td>`;
+        tbody.appendChild(tr);
+        // ถ้าไม่มี grandTotal ในไฟล์ จะรีเซ็ตเป็น 0
+        if (!$('lbGrandTotal').textContent) $('lbGrandTotal').textContent = fmtMoney(0);
+        return;
+      }
+
+      for (const r of rows) {
+        const name  = r.partName || '';
+        const qty   = Number(r.quantity ?? 0);
+        const unit  = r.unit || '';
+        const price = Number(r.unitPrice ?? 0);
+        const total = qty * price;
+        sum += total;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="border">${escapeHtml(name)}</td>
+          <td class="border text-right">${Number.isFinite(qty) ? qty : ''}</td>
+          <td class="border">${escapeHtml(unit)}</td>
+          <td class="border text-right">${fmtMoney(price)}</td>
+          <td class="border text-right font-medium">${fmtMoney(total)}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      // แสดงรวมเฉพาะกรณีที่ grandTotal ไม่ได้ถูกตั้งไว้ก่อน
+      if (!$('lbGrandTotal').textContent) {
+        $('lbGrandTotal').textContent = fmtMoney(sum);
+      }
+    }
+
+    // แสดงโน้ตของช่าง
+    function renderNotes(text) {
+      $('taNotes').value = (text || '').toString();
+    }
+
+    // ล้างจอ
+    function onClear() {
+      $('tfCode').value = '';
+      renderHeader(null);
+      renderParts([]);
+      renderNotes('');
+      $('lbGrandTotal').textContent = '';
+      hideAlert();
+      $('tfCode').focus();
+    }
+
+    // Events
+    $('btnSearch').addEventListener('click', onSearch);
+    $('btnClear').addEventListener('click', onClear);
+    $('tfCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') onSearch(); });
+
+    // โฟกัสช่องค้นหาเมื่อเปิดหน้า
+    window.addEventListener('DOMContentLoaded', () => $('tfCode').focus());
+  </script>
+</body>
+</html>

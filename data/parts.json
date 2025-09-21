@@ -1,0 +1,12 @@
+[
+  {
+    "sku": "ทดสอบ",
+    "name": "ทดสอบ",
+    "unit": null,
+    "onHand": 1,
+    "reserved": 0,
+    "minStock": 1,
+    "lastCost": null,
+    "supplier": ""
+  }
+]

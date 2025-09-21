@@ -17,7 +17,6 @@ public class LoginController {
 
     private Consumer<String> onLoginSuccess;
 
-    /** App จะเซ็ต callback นี้จาก HelloApplication */
     public void setOnLoginSuccess(Consumer<String> onLoginSuccess) {
         this.onLoginSuccess = onLoginSuccess;
     }
@@ -33,13 +32,13 @@ public class LoginController {
         String u = safe(txtUsername.getText());
         String p = safe(txtPassword.getText());
 
-        // ตรวจความครบถ้วน
+        
         if (u.isBlank() || p.isBlank()) {
             showWarn("ข้อมูลไม่ครบ", "กรุณากรอก Username และ Password");
             return;
         }
 
-        // ===== ตัวอย่างตรวจแบบง่ายมาก (ควรเปลี่ยนเป็นอ่านจากฐานข้อมูล/ไฟล์ + hash) =====
+        
         boolean ok = Objects.equals(u, "admin") && Objects.equals(p, "1234");
 
         if (!ok) {
@@ -48,7 +47,7 @@ public class LoginController {
         }
 
         if (onLoginSuccess != null) {
-            onLoginSuccess.accept(u); // callback กลับไปที่ HelloApplication
+            onLoginSuccess.accept(u); 
         }
     }
 

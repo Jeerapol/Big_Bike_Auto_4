@@ -10,6 +10,9 @@
         <VBox spacing="8">
             <children>
                 <!-- แถวค้นหา/กรอง -->
+                <HBox>
+                    <Label text="สต็อก/อะไหล่" style="-fx-font-size: 18; -fx-font-weight: bold;"/>
+                </HBox>
                 <HBox spacing="8" BorderPane.alignment="CENTER">
                     <children>
                         <TextField fx:id="txtSearch" promptText="ค้นหา รหัส/ชื่อสินค้า"/>

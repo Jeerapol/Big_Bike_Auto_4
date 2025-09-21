@@ -1,0 +1,21 @@
+[
+  {
+    "id": "253ee164-a3fa-4da8-baf6-1516e3e8b2b4",
+    "customerCode": "ZFDJ59CC3B",
+    "name": "สวัสดี วันจันทร์",
+    "phone": "0811111111",
+    "plate": "งง 999",
+    "province": "กรุงเทพ",
+    "bikeModel": "Suzuki Smash 115",
+    "receivedDate": "2025-09-20",
+    "registeredAt": "2025-09-20T15:45:04.009145",
+    "status": "RECEIVED",
+    "symptom": "ไม่ทราบ",
+    "repair": {
+      "parts": [],
+      "grandTotal": 0.0,
+      "notes": "",
+      "lastUpdated": "2025-09-20T15:45:04.010145600"
+    }
+  }
+]
